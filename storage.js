@@ -1,7 +1,7 @@
 /* ============================================================
    storage.js — уся робота з даними і вся математика боргу.
 
-   app.js не знає, де лежать дані. Він кличе Store.addComment(...)
+   app.js не знає, де лежать дані. Він кличе Store.saveReview(...)
    і отримує готові числа зі Store.calc. Під капотом — одне з двох
    сховищ з однаковим інтерфейсом:
      localBackend    — localStorage + тестові акаунти (етап 1);
@@ -50,8 +50,8 @@
   const isOwnerLogin = (login) => !!login && login === C.ownerLogin;
 
   /* ---------------- СТАН -------------------------------------- */
-  const COLS = ["users", "debts", "ratings", "comments", "site"];
-  const state = { users: [], debts: [], ratings: [], comments: [], site: [] };
+  const COLS = ["users", "debts", "ratings", "site"];
+  const state = { users: [], debts: [], ratings: [], site: [] };
   let me = null;
   let kickReason = null;
 
@@ -279,7 +279,7 @@
     const rid = () => Math.random().toString(36).slice(2, 12);
 
     function seed() {
-      const db = { accounts: {}, users: {}, debts: {}, ratings: {}, comments: {}, site: { subject: DEMO_SUBJECT } };
+      const db = { accounts: {}, users: {}, debts: {}, ratings: {}, site: { subject: DEMO_SUBJECT } };
       const uidOf = {};
       C.demoUsers.forEach((u) => {
         const uid = "u_" + u.login;
@@ -303,11 +303,9 @@
       debt("oleh", 2000, "подарунок мамі", at(-60), -90, { payments: [{ amount: 1000, ts: ts(-58) }, { amount: 1000, ts: ts(-50) }] });
       debt("oleh", 400, "таксі додому", at(10), 0, { status: "pending", author: "Олег" });
 
-      db.ratings[uidOf.rostyk] = { value: 3, user: "Ростик", ts: ts(-3) };
-      db.ratings[uidOf.oleh] = { value: 4, user: "Олег", ts: ts(-2) };
-      const m = Math.floor(ts(-2) / 60000);
-      db.comments[uidOf.oleh + "_" + m + "_0"] = { uid: uidOf.oleh, user: "Олег", text: "Діма, телефон сам себе не поверне 📱", ts: ts(-2) };
-      db.comments[uidOf.rostyk + "_" + (m + 30) + "_0"] = { uid: uidOf.rostyk, user: "Ростик", text: "Нагадую без нагадування: шаурма прострочена.", ts: ts(-2) + 1800000 };
+      db.ratings[uidOf.rostyk] = { value: 3, text: "Віддає, але шаурму вже двічі прострочив. Нагадую без нагадування 🙂", user: "Ростик", ts: ts(-3) };
+      db.ratings[uidOf.oleh] = { value: 4, text: "Телефон поки не повернув, зате чесно пише «віддав» тільки коли справді віддав.", user: "Олег", ts: ts(-2) };
+      db.ratings[uidOf.admin] = { value: 5, text: "", user: "Адмін", ts: ts(-9) };
       return db;
     }
 
@@ -411,16 +409,10 @@
       }
       if (col === "ratings") {
         if (op === "delete") return admin || id === uid;
-        return id === uid && Number.isInteger(after.value) && after.value >= 1 && after.value <= 5
+        return id === uid && role !== "subject" && Number.isInteger(after.value) && after.value >= 1 && after.value <= 5
+          && typeof after.text === "string" && after.text.length <= L.reviewMax
+          && Object.keys(after).every((k) => ["value", "text", "user", "ts"].includes(k))
           && after.user === p.name && fresh(after.ts);
-      }
-      if (col === "comments") {
-        if (op === "delete") return admin || before.uid === uid;
-        if (op === "update") return false;
-        const m = Math.floor(Date.now() / 60000), ok = [];
-        [m, m - 1].forEach((mm) => { for (let s = 0; s < 5; s++) ok.push(uid + "_" + mm + "_" + s); });
-        return ok.includes(id) && after.uid === uid && after.user === p.name
-          && typeof after.text === "string" && after.text.length > 0 && after.text.length <= L.commentMax && fresh(after.ts);
       }
       return false;
     }
@@ -680,35 +672,19 @@
     /* ---------------- ЛЮДИ ---------------- */
     updateUser(uid, patch) { return B.update("users", uid, patch); },
 
-    /* ---------------- ОЦІНКА ----------------
-       ключ документа = мій uid: одна людина — одна оцінка */
-    rate(value) {
-      return B.set("ratings", me.uid, { value: Number(value), user: me.name, ts: Date.now() });
-    },
-
-    /* ---------------- КОМЕНТАРІ ----------------
-       Антиспам у ключі: uid_хвилина_слот, слоти 0–4. Зайнятий
-       ключ база створити не дасть — перебираємо вільний. */
-    async addComment(text) {
+    /* ---------------- ВІДГУКИ ----------------
+       Як у Google Maps: зірки + необов'язковий текст в одному документі.
+       Ключ документа = мій uid, тож одна людина — один відгук: повторна
+       публікація переписує старий, а написати за іншого неможливо. */
+    saveReview({ value, text }) {
+      value = Number(value);
       text = String(text || "").trim();
-      if (!text) throw invalid("Порожній коментар.");
-      if (text.length > L.commentMax) throw invalid("Коментар — до " + L.commentMax + " символів.");
-      const minute = Math.floor(Date.now() / 60000);
-      const taken = new Set(state.comments.map((c) => c.id));
-      for (let slot = 0; slot < L.commentsPerMinute; slot++) {
-        const id = me.uid + "_" + minute + "_" + slot;
-        if (taken.has(id)) continue;
-        try {
-          await B.set("comments", id, { uid: me.uid, user: me.name, text, ts: Date.now() });
-          return;
-        } catch (e) {
-          if (e.code !== "permission-denied") throw e;
-        }
-      }
-      const e = invalid("Не більше " + L.commentsPerMinute + " коментарів на хвилину. Зачекай трохи.");
-      e.code = "spam";
-      throw e;
+      if (!Number.isInteger(value) || value < 1 || value > 5) return Promise.reject(invalid("Постав від 1 до 5 зірок."));
+      if (text.length > L.reviewMax) return Promise.reject(invalid("Відгук — до " + L.reviewMax + " символів."));
+      if (me.role === "subject") return Promise.reject(invalid("Герой сайту не оцінює сам себе."));
+      return B.set("ratings", me.uid, { value, text, user: me.name, ts: Date.now() });
     },
-    removeComment(id) { return B.remove("comments", id); }
+    // свій відгук — автор; чужий — лише адмін
+    removeReview(uid) { return B.remove("ratings", uid); }
   };
 })();

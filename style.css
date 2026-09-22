@@ -691,63 +691,131 @@ select:disabled { color: var(--muted); }
 .ach.on .ach-icon { background: var(--accent); color: var(--accent-ink); filter: none; }
 .ach.on .ach-state { color: var(--ok); }
 
-/* ---------------- ОЦІНКА ---------------- */
+/* ---------------- ВІДГУКИ (як у Google Maps) ---------------- */
 
-.rating { display: grid; gap: 20px; }
-@media (min-width: 760px) {
-  .rating { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 32px; }
-}
-.rate-score { display: grid; justify-items: start; gap: 2px; }
-.rate-score strong { font-family: var(--f-display); font-size: 52px; line-height: 1; letter-spacing: -0.04em; }
-.rate-score small { color: var(--muted); }
+/* зірки для показу */
+.stars-view { display: inline-flex; gap: 1px; line-height: 1; }
 .stars-view i { font-style: normal; font-size: 18px; color: var(--surface-2); }
 .stars-view i.on { color: var(--accent); }
-.rate-hist { display: grid; gap: 6px; }
-.hist-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) 24px; gap: 10px; align-items: center; font-size: 13px; font-weight: 700; }
-.hist-row b { font-family: var(--f-mono); text-align: right; color: var(--muted); }
-.hist-row .bar { height: 8px; }
-.rate-mine .m-label { margin-bottom: 4px; }
+.stars-view.sm i { font-size: 13px; }
+
+/* зірки для вибору */
 .stars-pick { display: flex; gap: 2px; }
 .stars-pick button {
-  width: 44px; height: 44px;
-  border: 0; background: none;
-  font-size: 32px; line-height: 1;
+  width: 40px; height: 40px;
+  border: 0; background: none; padding: 0;
+  font-size: 28px; line-height: 1;
   color: var(--surface-2);
   cursor: pointer;
-  transition: transform .1s ease;
+  transition: transform .1s ease, color .1s ease;
 }
+.stars-pick.big button { width: 48px; height: 48px; font-size: 38px; }
 .stars-pick button.on { color: var(--accent); }
+/* наведення підсвічує зірки до курсора, як у Google */
 .stars-pick:hover button { color: var(--accent); }
 .stars-pick button:hover ~ button { color: var(--surface-2); }
 .stars-pick button:hover { transform: scale(1.12); }
 
-/* ---------------- КОМЕНТАРІ ---------------- */
+/* підсумок: велика цифра + розподіл */
+.rv-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.rv-score { display: grid; justify-items: center; gap: 4px; min-width: 96px; }
+.rv-score strong { font-family: var(--f-display); font-size: 52px; line-height: 1; letter-spacing: -0.04em; }
+.rv-score small { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 
-.comment-form {
-  display: grid; gap: 8px;
-  padding: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+.rv-hist { display: grid; gap: 2px; }
+.hist-row {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 24px;
+  gap: 10px; align-items: center;
+  width: 100%;
+  padding: 3px 6px;
+  border: 0; border-radius: 8px;
+  background: none;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+.hist-row:hover:not(:disabled) { background: var(--surface-2); }
+.hist-row:disabled { cursor: default; opacity: .6; }
+.hist-row.on { background: var(--accent-soft); }
+.hist-row b { font-family: var(--f-mono); text-align: right; color: var(--muted); }
+.hist-row .bar { height: 8px; }
+
+/* мій відгук / запрошення */
+.rv-mine { padding: 16px 0 4px; }
+.rv-mine:empty { display: none; }
+.rv-invite { display: flex; gap: 12px; align-items: center; }
+.rv-invite b { display: block; font-size: 15px; margin-bottom: 2px; }
+
+/* форма */
+.rv-form {
+  display: grid; gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
   border-radius: var(--r-lg);
-  margin-bottom: 8px;
-}
-.comment-form textarea { background: var(--bg); border-color: transparent; }
-.comment-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-
-.comments { display: grid; gap: 12px; margin-top: 12px; }
-.comment { display: flex; gap: 10px; align-items: flex-start; max-width: 720px; }
-.comment-body {
-  min-width: 0; flex: 1;
-  padding: 10px 14px;
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 4px var(--r-lg) var(--r-lg) var(--r-lg);
 }
-.comment.own .comment-body { background: var(--accent-soft); border-color: transparent; }
-.comment-body header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; }
-.comment-body time { color: var(--muted); font-size: 12px; }
-.comment-body .link-btn { margin-left: auto; font-size: 12px; padding: 0; }
-.comment-body p { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
+.rv-who { display: flex; gap: 10px; align-items: center; }
+.rv-who small { display: block; color: var(--muted); font-size: 12.5px; }
+.rv-pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rv-pick-label { font-weight: 700; color: var(--muted); min-width: 80px; }
+.rv-form textarea { background: var(--surface); }
+.rv-form-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rv-form-actions { display: flex; gap: 8px; margin-left: auto; }
+
+/* сортування */
+.rv-toolbar { padding: 14px 0 2px; }
+.rv-toolbar:empty { display: none; }
+.chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip-filter { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+
+/* стрічка */
+.rv-list { display: grid; }
+.rv {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.rv-list .rv:first-child { border-top: 0; }
+.rv-mine .rv { border-top: 0; padding-top: 0; }
+.rv-own {
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.rv-mine .rv-own { padding-top: 14px; }
+.rv-head { display: flex; gap: 10px; align-items: center; }
+.rv-meta { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.rv-meta b { font-size: 14.5px; overflow-wrap: anywhere; }
+.rv-meta > span { display: flex; align-items: center; gap: 8px; }
+.rv-meta time { color: var(--muted); font-size: 12.5px; }
+.rv-you {
+  margin-left: 6px;
+  font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--accent);
+}
+.rv-actions { display: flex; gap: 12px; }
+.rv-text {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  max-width: 70ch;
+}
+
+@media (max-width: 480px) {
+  .rv-summary { gap: 16px; }
+  .rv-score { min-width: 80px; }
+  .rv-score strong { font-size: 42px; }
+  .rv-head { flex-wrap: wrap; }
+  .rv-actions { width: 100%; padding-left: 46px; }
+}
 
 /* ---------------- ПІДВАЛ ---------------- */
 

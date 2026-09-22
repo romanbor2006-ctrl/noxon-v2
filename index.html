@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 
-  <!-- ?v=6 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=7 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -168,24 +168,40 @@
       <div class="achievements" id="achievements"></div>
     </section>
 
-    <!-- НАРОДНА ОЦІНКА -->
-    <section class="card">
-      <h2 class="h">Народна оцінка</h2>
-      <div class="rating" id="rating"></div>
-    </section>
+    <!-- ВІДГУКИ: оцінка зірками + текст в одному, як у Google Maps -->
+    <section class="card reviews" id="reviewsBlock">
+      <h2 class="h">Відгуки</h2>
 
-    <!-- КОМЕНТАРІ -->
-    <section class="section">
-      <h2 class="h">Коментарі</h2>
-      <form class="comment-form" id="commentForm">
-        <textarea id="commentText" rows="2" placeholder="Що скажеш?" required></textarea>
-        <div class="comment-row">
-          <span class="hint" id="commentCount"></span>
-          <button class="btn btn-accent" type="submit">Надіслати</button>
+      <!-- середній бал і розподіл; натискання на рядок — фільтр -->
+      <div class="rv-summary" id="rvSummary"></div>
+
+      <!-- мій відгук або запрошення оцінити -->
+      <div class="rv-mine" id="rvMine"></div>
+
+      <!-- форма лежить у розмітці, а не малюється щоразу:
+           чужі зміни в базі не зітруть те, що людина друкує -->
+      <form class="rv-form" id="rvForm" hidden novalidate>
+        <div class="rv-who">
+          <span class="avatar" id="rvAvatar"></span>
+          <div><b id="rvName"></b><small>Відгук бачать усі учасники</small></div>
+        </div>
+        <div class="rv-pick">
+          <div class="stars-pick big" id="rvStars" role="radiogroup" aria-label="Оцінка від 1 до 5"><button type="button" role="radio" aria-checked="false" aria-label="1 з 5" data-draft="1">★</button><button type="button" role="radio" aria-checked="false" aria-label="2 з 5" data-draft="2">★</button><button type="button" role="radio" aria-checked="false" aria-label="3 з 5" data-draft="3">★</button><button type="button" role="radio" aria-checked="false" aria-label="4 з 5" data-draft="4">★</button><button type="button" role="radio" aria-checked="false" aria-label="5 з 5" data-draft="5">★</button></div>
+          <span class="rv-pick-label" id="rvStarLabel">Торкнись зірки</span>
+        </div>
+        <textarea id="rvText" rows="3" placeholder="Розкажи, як воно — необов'язково"></textarea>
+        <p class="form-error" id="rvError" role="alert" hidden></p>
+        <div class="rv-form-row">
+          <span class="hint" id="rvCount"></span>
+          <div class="rv-form-actions">
+            <button class="btn btn-ghost" type="button" id="rvCancel">Скасувати</button>
+            <button class="btn btn-accent" type="submit" id="rvSubmit">Опублікувати</button>
+          </div>
         </div>
       </form>
-      <p class="form-error" id="commentError" role="alert" hidden></p>
-      <div class="comments" id="comments"></div>
+
+      <div class="rv-toolbar" id="rvToolbar"></div>
+      <div class="rv-list" id="rvList"></div>
     </section>
 
     <footer class="foot">
@@ -253,8 +269,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=6"></script>
-<script src="storage.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="config.js?v=7"></script>
+<script src="storage.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

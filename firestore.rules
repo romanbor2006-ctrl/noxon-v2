@@ -184,40 +184,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // --- ОЦІНКИ -------------------------------------------------
-    // id документа = uid того, хто голосує: одна людина — одна оцінка,
-    // і проголосувати за іншого неможливо
+    // --- ВІДГУКИ (оцінка + текст, як у Google Maps) ----------
+    // id документа = uid того, хто пише: одна людина — один відгук,
+    // і написати за іншого неможливо. Тому окремий антиспам не потрібен:
+    // повторна публікація лише переписує свій же документ.
     match /ratings/{uid} {
       allow read: if active();
+      // герой сайту сам себе не оцінює — як власник закладу в Google Maps
       allow create, update: if active() && request.auth.uid == uid
-        && incoming().keys().hasOnly(['value', 'user', 'ts'])
+        && role() != 'subject'
+        && incoming().keys().hasOnly(['value', 'text', 'user', 'ts'])
         && incoming().value is int && incoming().value >= 1 && incoming().value <= 5
+        && incoming().get('text', '') is string && incoming().get('text', '').size() <= 500
         && incoming().user == myName()
         && freshTs(incoming().ts);
+      // свій відгук видаляє автор, будь-який — адмін
       allow delete: if isAdmin() || (active() && request.auth.uid == uid);
     }
 
-    // --- КОМЕНТАРІ ----------------------------------------------
-    // Антиспам живе в ключі: uid_хвилина_слот. Дозволені лише слоти
-    // 0–4 поточної та попередньої хвилини, а зайнятий документ база
-    // створити не дасть (оновлення заборонені). 5 коментарів на хвилину.
-    function slot(m, s) { return request.auth.uid + '_' + string(m) + '_' + string(s); }
-    function slotOk(cid) {
-      let m = math.floor(now() / 60000);
-      return cid in [slot(m, 0), slot(m, 1), slot(m, 2), slot(m, 3), slot(m, 4),
-                     slot(m - 1, 0), slot(m - 1, 1), slot(m - 1, 2), slot(m - 1, 3), slot(m - 1, 4)];
-    }
-
-    match /comments/{cid} {
-      allow read: if active();
-      allow create: if active() && slotOk(cid)
-        && incoming().keys().hasOnly(['uid', 'user', 'text', 'ts'])
-        && incoming().uid == request.auth.uid
-        && incoming().user == myName()
-        && incoming().text is string && incoming().text.size() > 0 && incoming().text.size() <= 500
-        && freshTs(incoming().ts);
-      allow update: if false;
-      allow delete: if isAdmin() || (active() && stored().get('uid', '') == request.auth.uid);
-    }
+    // Колекцію comments більше не використовуємо: коментарі стали
+    // частиною відгуків. Без правила вона закрита для всіх.
   }
 }

@@ -150,9 +150,10 @@
         loginError(reason || "");
         // вийшов — прибираємо з розмітки все, що прийшло з бази
         ["dossier", "metrics", "hot", "about", "traits", "timeline", "creditors", "payday", "queue",
-         "calendar", "ledger", "pending", "people", "achievements", "rating", "comments", "meChip", "fNote", "claimInfo"]
+         "calendar", "ledger", "pending", "people", "achievements", "rvSummary", "rvMine", "rvToolbar", "rvList", "meChip", "fNote", "claimInfo"]
           .forEach((id) => { $(id).innerHTML = ""; });
         subjectKey = null;
+        rvEditing = false;
         document.title = C.siteName;
         return;
       }
@@ -370,12 +371,11 @@
     $("fAmount").max = C.limits.amountMax;
     $("fReason").maxLength = C.limits.reasonMax;
     $("fReason").placeholder = "до " + C.limits.reasonMax + " символів";
-    $("commentText").maxLength = C.limits.commentMax;
+    $("rvText").maxLength = C.limits.reviewMax;
     // дата за замовчуванням — через два тижні
     const d = K.today(); d.setDate(d.getDate() + 14);
     $("fDue").value = K.iso(d);
     $("fDue").min = K.iso(K.today());
-    updateCommentCount();
   }
 
   /* ============================================================
@@ -397,8 +397,7 @@
     renderForm();
     if (isAdmin()) { renderPending(); renderPeople(); }
     renderAchievements();
-    renderRating();
-    renderComments();
+    renderReviews();
   }
 
   /* --- метрики + «що горить» ------------------------------------ */
@@ -426,7 +425,7 @@
       <div class="metric">
         <span class="m-label">Народна оцінка</span>
         <strong class="m-value">${rt.count ? rt.avg.toFixed(1).replace(".", ",") + "<small>/5</small>" : "—"}</strong>
-        <span class="m-sub">${rt.count ? rt.count + " " + plural(rt.count, "голос", "голоси", "голосів") : "ще ніхто не оцінив"}</span>
+        <span class="m-sub">${rt.count ? rt.count + " " + plural(rt.count, "відгук", "відгуки", "відгуків") : "ще ніхто не оцінив"}</span>
       </div>`;
 
     // Критерій успіху: за п'ять секунд видно, що горить
@@ -795,76 +794,190 @@
       </div>`).join("");
   }
 
-  /* --- народна оцінка -----------------------------------------------
-     Думка людей. Індекс надійності — факт із даних. */
-  function renderRating() {
-    const r = K.rating();
-    const max = Math.max(1, ...Object.values(r.hist));
-    $("rating").innerHTML = `
-      <div class="rate-score">
-        <strong>${r.count ? r.avg.toFixed(1).replace(".", ",") : "—"}</strong>
-        <span class="stars-view" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= Math.round(r.avg) ? "on" : ""}">★</i>`).join("")}</span>
-        <small>${r.count ? r.count + " " + plural(r.count, "голос", "голоси", "голосів") : "голосів ще немає"}</small>
-      </div>
-      <div class="rate-hist">
-        ${[5, 4, 3, 2, 1].map((v) => `
-          <div class="hist-row"><span>${v}</span><div class="bar"><i style="width:${(r.hist[v] / max) * 100}%"></i></div><b>${r.hist[v]}</b></div>`).join("")}
-      </div>
-      <div class="rate-mine">
-        <p class="m-label">${r.mine ? "Твоя оцінка — можна змінити" : "Твоя оцінка"}</p>
-        <div class="stars-pick" role="radiogroup" aria-label="Оцінка від 1 до 5">
-          ${[1, 2, 3, 4, 5].map((v) => `<button type="button" role="radio" aria-checked="${v === r.mine}" aria-label="${v} з 5" data-star="${v}" class="${v <= r.mine ? "on" : ""}">★</button>`).join("")}
-        </div>
-      </div>`;
+  /* --- відгуки ------------------------------------------------------
+     Як у Google Maps: зірки й текст — одне ціле. Угорі середній бал і
+     розподіл (натискання на рядок фільтрує), далі «мій відгук» або
+     запрошення оцінити, далі стрічка. Народна оцінка — це думка людей;
+     індекс надійності — факт із даних. */
+  const STAR_WORD = ["", "Жахливо", "Погано", "Нормально", "Добре", "Чудово"];
+  let rvSort = "new";      // new | high | low
+  let rvFilter = 0;        // 0 — усі, 1–5 — лише з такою оцінкою
+  let rvEditing = false;   // відкрита форма
+  let rvDraft = 0;         // обрані у формі зірки
+
+  const starsLine = (v, cls) =>
+    `<span class="stars-view ${cls || ""}" aria-label="${v} з 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= v ? "on" : ""}">★</i>`).join("")}</span>`;
+
+  function ago(ts) {
+    const n = K.daysBetween(ts, K.today());
+    if (n <= 0) return "сьогодні";
+    if (n === 1) return "вчора";
+    if (n < 7) return n + " " + plural(n, "день", "дні", "днів") + " тому";
+    if (n < 30) { const w = Math.round(n / 7); return w + " " + plural(w, "тиждень", "тижні", "тижнів") + " тому"; }
+    if (n < 365) { const m = Math.round(n / 30); return m + " " + plural(m, "місяць", "місяці", "місяців") + " тому"; }
+    const y = Math.round(n / 365);
+    return y + " " + plural(y, "рік", "роки", "років") + " тому";
   }
 
-  $("rating").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-star]");
-    if (b) act(S.rate(Number(b.dataset.star)), "Оцінку збережено");
+  function reviewCard(r, own) {
+    return `
+      <article class="rv ${own ? "rv-own" : ""}">
+        <header class="rv-head">
+          <span class="avatar">${esc((r.user || "?")[0].toUpperCase())}</span>
+          <div class="rv-meta">
+            <b>${esc(r.user)}${own ? ' <small class="rv-you">твій відгук</small>' : ""}</b>
+            <span>${starsLine(r.value, "sm")}<time title="${esc(dTime(r.ts))}">${ago(r.ts)}</time></span>
+          </div>
+          ${own ? `
+            <div class="rv-actions">
+              <button class="link-btn" type="button" data-rv="edit">Змінити</button>
+              <button class="link-btn danger" type="button" data-rv="delete">Видалити</button>
+            </div>`
+          : isAdmin() ? `<button class="link-btn danger" type="button" data-rv="remove" data-id="${esc(r.id)}">видалити</button>` : ""}
+        </header>
+        ${r.text ? `<p class="rv-text">${esc(r.text)}</p>` : ""}
+      </article>`;
+  }
+
+  function renderReviews() {
+    const r = K.rating();
+    const all = S.state.ratings;
+    const mine = all.find((x) => x.id === me().uid);
+    const max = Math.max(1, ...Object.values(r.hist));
+
+    // підсумок
+    $("rvSummary").innerHTML = `
+      <div class="rv-score">
+        <strong>${r.count ? r.avg.toFixed(1).replace(".", ",") : "—"}</strong>
+        ${starsLine(Math.round(r.avg))}
+        <small>${r.count ? r.count + " " + plural(r.count, "відгук", "відгуки", "відгуків") : "відгуків ще немає"}</small>
+      </div>
+      <div class="rv-hist" role="group" aria-label="Фільтр за оцінкою">
+        ${[5, 4, 3, 2, 1].map((v) => `
+          <button type="button" class="hist-row ${rvFilter === v ? "on" : ""}" data-filter="${v}"
+                  aria-pressed="${rvFilter === v}" ${r.hist[v] ? "" : "disabled"} title="Показати лише ${v}★">
+            <span>${v}</span><div class="bar"><i style="width:${(r.hist[v] / max) * 100}%"></i></div><b>${r.hist[v]}</b>
+          </button>`).join("")}
+      </div>`;
+
+    // мій відгук / запрошення / форма
+    $("rvForm").hidden = !rvEditing;
+    if (rvEditing) {
+      $("rvMine").innerHTML = "";
+    } else if (mine) {
+      $("rvMine").innerHTML = reviewCard(mine, true);
+    } else if (isSubject()) {
+      // як власник закладу в Google Maps: сам себе не оцінює
+      $("rvMine").innerHTML = `<p class="hint">Це відгуки про тебе. Оцінювати себе не можна — лише читати.</p>`;
+    } else {
+      const hero = subject() ? subject().name.split(" ")[0] : "герой сайту";
+      $("rvMine").innerHTML = `
+        <div class="rv-invite">
+          <span class="avatar">${esc((me().name || "?")[0].toUpperCase())}</span>
+          <div>
+            <b>Як тобі ${esc(hero)}?</b>
+            <div class="stars-pick" role="group" aria-label="Почати відгук">
+              ${[1, 2, 3, 4, 5].map((v) => `<button type="button" data-start="${v}" aria-label="${v} з 5">★</button>`).join("")}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // сортування
+    const others = all.filter((x) => x.id !== me().uid && (!rvFilter || x.value === rvFilter));
+    const sorters = {
+      new: (a, b) => b.ts - a.ts,
+      high: (a, b) => b.value - a.value || b.ts - a.ts,
+      low: (a, b) => a.value - b.value || b.ts - a.ts
+    };
+    others.sort(sorters[rvSort]);
+
+    $("rvToolbar").innerHTML = all.length > 1 || rvFilter ? `
+      <div class="chips" role="group" aria-label="Сортування">
+        ${[["new", "Найновіші"], ["high", "Найвищі"], ["low", "Найнижчі"]].map(([k, l]) =>
+          `<button type="button" class="chip ${rvSort === k ? "on" : ""}" data-sort="${k}" aria-pressed="${rvSort === k}">${l}</button>`).join("")}
+        ${rvFilter ? `<button type="button" class="chip chip-filter" data-filter="0">${rvFilter}★ ✕</button>` : ""}
+      </div>` : "";
+
+    $("rvList").innerHTML = others.length
+      ? others.map((x) => reviewCard(x, false)).join("")
+      : (rvFilter ? `<p class="empty">Відгуків на ${rvFilter}★ немає.</p>`
+        : mine ? "" : `<p class="empty">Ще ніхто не писав. Будь першим.</p>`);
+  }
+
+  function paintDraft() {
+    document.querySelectorAll("#rvStars [data-draft]").forEach((b) => {
+      const v = Number(b.dataset.draft);
+      b.classList.toggle("on", v <= rvDraft);
+      b.setAttribute("aria-checked", String(v === rvDraft));
+    });
+    $("rvStarLabel").textContent = rvDraft ? STAR_WORD[rvDraft] : "Торкнись зірки";
+    $("rvSubmit").disabled = !rvDraft;
+  }
+
+  function updateReviewCount() {
+    const n = $("rvText").value.length;
+    $("rvCount").textContent = n ? n + " / " + C.limits.reviewMax : "";
+  }
+
+  function openReviewForm(stars) {
+    const mine = S.state.ratings.find((x) => x.id === me().uid);
+    rvEditing = true;
+    rvDraft = stars || (mine ? mine.value : 0);
+    $("rvText").value = mine ? mine.text || "" : "";
+    $("rvAvatar").textContent = (me().name || "?")[0].toUpperCase();
+    $("rvName").textContent = me().name;
+    $("rvSubmit").textContent = mine ? "Зберегти" : "Опублікувати";
+    $("rvError").hidden = true;
+    paintDraft();
+    updateReviewCount();
+    renderReviews();
+    $("rvText").focus();
+  }
+
+  function closeReviewForm() {
+    rvEditing = false;
+    renderReviews();
+  }
+
+  $("reviewsBlock").addEventListener("click", (e) => {
+    const start = e.target.closest("[data-start]");
+    if (start) return openReviewForm(Number(start.dataset.start));
+
+    const draft = e.target.closest("[data-draft]");
+    if (draft) { rvDraft = Number(draft.dataset.draft); $("rvError").hidden = true; return paintDraft(); }
+
+    const f = e.target.closest("[data-filter]");
+    if (f) { const v = Number(f.dataset.filter); rvFilter = rvFilter === v ? 0 : v; return renderReviews(); }
+
+    const so = e.target.closest("[data-sort]");
+    if (so) { rvSort = so.dataset.sort; return renderReviews(); }
+
+    const a = e.target.closest("[data-rv]");
+    if (!a) return;
+    if (a.dataset.rv === "edit") openReviewForm();
+    if (a.dataset.rv === "delete" && confirm("Видалити свій відгук?")) act(S.removeReview(me().uid), "Відгук видалено");
+    if (a.dataset.rv === "remove" && confirm("Видалити чужий відгук?")) act(S.removeReview(a.dataset.id), "Відгук видалено");
   });
 
-  /* --- коментарі ---------------------------------------------------- */
-  function renderComments() {
-    const list = [...S.state.comments].sort((a, b) => b.ts - a.ts);
-    $("comments").innerHTML = list.length ? list.map((c) => {
-      const own = c.uid === me().uid;
-      return `
-      <article class="comment ${own ? "own" : ""}">
-        <span class="avatar">${esc((c.user || "?")[0].toUpperCase())}</span>
-        <div class="comment-body">
-          <header><b>${esc(c.user)}</b><time>${dTime(c.ts)}</time>
-            ${own || isAdmin() ? `<button class="link-btn" data-del="${esc(c.id)}">видалити</button>` : ""}</header>
-          <p>${esc(c.text)}</p>
-        </div>
-      </article>`;
-    }).join("") : `<p class="empty">Коментарів ще немає. Будь першим.</p>`;
-  }
+  $("rvCancel").addEventListener("click", closeReviewForm);
+  $("rvText").addEventListener("input", () => { updateReviewCount(); $("rvError").hidden = true; });
 
-  function updateCommentCount() {
-    const n = $("commentText").value.length;
-    $("commentCount").textContent = n ? n + " / " + C.limits.commentMax : "";
-  }
-  $("commentText").addEventListener("input", () => { updateCommentCount(); $("commentError").hidden = true; });
-
-  $("commentForm").addEventListener("submit", async (e) => {
+  $("rvForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector("button[type=submit]");
-    btn.disabled = true;
-    $("commentError").hidden = true;
+    if (!rvDraft) { $("rvError").textContent = "Спершу постав зірки."; $("rvError").hidden = false; return; }
+    $("rvSubmit").disabled = true;
     try {
-      await S.addComment($("commentText").value);
-      $("commentText").value = "";
-      updateCommentCount();
+      await S.saveReview({ value: rvDraft, text: $("rvText").value });
+      rvEditing = false;
+      toast("Відгук опубліковано");
+      renderReviews();
     } catch (err) {
-      $("commentError").textContent = humanError(err);
-      $("commentError").hidden = false;
+      $("rvError").textContent = humanError(err);
+      $("rvError").hidden = false;
     } finally {
-      btn.disabled = false;
+      $("rvSubmit").disabled = !rvDraft;
     }
   });
-
-  $("comments").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-del]");
-    if (b && confirm("Видалити коментар?")) act(S.removeComment(b.dataset.del), "Коментар видалено");
-  });
 })();
+
