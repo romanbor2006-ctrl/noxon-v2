@@ -130,6 +130,28 @@ log(db.collection("debts").doc("ID_ЧУЖОГО_БОРГУ").update({ claim: nul
 Store.raw.db.collection("debts").doc("ID_БОРГУ").update({ payments: [{ amount: 500, ts: Date.now() }] }).catch((e) => console.log(e.code));
 ```
 
+## Telegram-нагадування
+
+Бот у папці `bot/` щодня о 9:00 за Києвом перевіряє борги й пише в Telegram, якщо до дати повернення лишилось **3 дні, 1 день або настав сам день**. Решту часу мовчить. Усе, що горить, — одним повідомленням. Після дати повернення бот не нагадує.
+
+Запускає GitHub Actions (`.github/workflows/remind.yml`), безкоштовно. Бот заходить у Firebase **анонімно**, як гість сайту, і лише читає борги — ключів Firebase не потрібно. Дні й залишки рахує тим самим `storage.js`, що й сайт.
+
+**Секрети** (Settings → Secrets and variables → Actions):
+- `TELEGRAM_BOT_TOKEN` — токен від @BotFather;
+- `TELEGRAM_CHAT_ID` — кому надсилати. Щоб змінити отримувача, заміни лише цей секрет; людина має спершу натиснути **Start** у боті.
+
+**Перевірити вручну:** Actions → «Нагадування в Telegram» → **Run workflow** → режим `test` — повідомлення прийде завжди, навіть якщо нічого не горить.
+
+**Локально**, без секретів — лише показати текст:
+
+```bash
+node bot/remind.js --dry-run --mode=test
+```
+
+Тести: `node --test bot/reminders.test.js bot/firestore.test.js`.
+
+Обмеження: розклад GitHub може запізнюватися на 5–30 хвилин; після 60 днів без комітів GitHub вимикає розклад (вмикається одним кліком на вкладці Actions).
+
 ## Публікація
 
 GitHub Pages: публічний репозиторій, файли в корені, Settings → Pages → гілка `main`, папка `/`. Секретів у коді немає — доступ тримають правила бази.

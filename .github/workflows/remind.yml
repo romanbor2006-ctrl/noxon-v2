@@ -1,0 +1,39 @@
+name: Нагадування в Telegram
+
+on:
+  schedule:
+    # 06:00 і 07:00 UTC: одне з них — 9:00 у Києві і влітку, і взимку.
+    # Скрипт сам пропускає запуск, що не припав на 9-ту.
+    - cron: "0 6 * * *"
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "test — надіслати завжди; normal — як щоранку"
+        type: choice
+        options: [test, normal]
+        default: test
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Тести
+        run: node --test bot/reminders.test.js bot/firestore.test.js
+        env:
+          TZ: Europe/Kyiv
+      - name: Нагадування
+        run: node bot/remind.js
+        env:
+          TZ: Europe/Kyiv
+          REMIND_MODE: ${{ github.event.inputs.mode || 'normal' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
