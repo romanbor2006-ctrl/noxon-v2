@@ -226,8 +226,13 @@
   let introDone = false;
   function countUp(el) {
     const to = Number(el.dataset.to) || 0;
-    if (!to || reduceMotion()) return;
+    if (!to) return;
+    const final = money(to);
+    // У прихованій вкладці кадри не малюються, тож анімація не почнеться
+    // й сума назавжди лишилась би нулем. Тоді просто ставимо значення.
+    if (reduceMotion() || document.hidden) { el.textContent = final; return; }
     const start = performance.now(), dur = 900;
+    setTimeout(() => { el.textContent = final; }, dur + 200);   // страховка
     const tick = (t) => {
       const k = Math.min(1, (t - start) / dur);
       const eased = 1 - Math.pow(1 - k, 3);
