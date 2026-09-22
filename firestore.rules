@@ -117,21 +117,22 @@ service cloud.firestore {
     // Кредитор відповідає на заявку. Або "не отримував" (claim → null,
     // платежі ті самі), або "отримав": у кінець списку дописується рівно
     // один платіж на суму із заявки, старі платежі не змінюються.
+    // Новий платіж — той, що став у кінець списку
+    function newPayment() { return newPayments()[oldPayments().size()]; }
+
     function confirmStep() {
-      let claim = stored().get('claim', null);
-      let n = oldPayments().size();
       return active()
         && stored().get('creditorUid', '') == request.auth.uid
         && stored().get('status', '') == 'approved'
-        && claim != null
+        && stored().get('claim', null) != null
         && changed().hasOnly(['claim', 'payments'])
         && incoming().get('claim', null) == null
         && (!changed().hasAny(['payments'])
-            || (newPayments().size() == n + 1
-                && newPayments()[0:n] == oldPayments()
-                && newPayments()[n].keys().hasOnly(['amount', 'ts'])
-                && newPayments()[n].amount == claim.amount
-                && freshTs(newPayments()[n].ts)));
+            || (newPayments().size() == oldPayments().size() + 1
+                && newPayments().hasAll(oldPayments())
+                && newPayment().keys().hasOnly(['amount', 'ts'])
+                && newPayment().amount == stored().claim.amount
+                && freshTs(newPayment().ts)));
     }
 
     match /debts/{id} {
