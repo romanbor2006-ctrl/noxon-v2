@@ -227,7 +227,7 @@ select:disabled { color: var(--muted); }
 
 /* ---------------- ШАПКА ---------------- */
 
-.bar {
+.topbar {
   position: sticky; top: 0; z-index: 10;
   background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: blur(10px);
@@ -608,11 +608,12 @@ select:disabled { color: var(--muted); }
   align-items: end;
   margin-bottom: 10px;
 }
-.debt-form .field-wide { grid-column: 1 / -1; }
-.debt-form .btn { grid-column: 1 / -1; }
+/* на телефоні: сума й дата поруч, «за що» й кнопка — на всю ширину */
+.debt-form .field-wide { grid-column: 1 / -1; order: 1; }
+.debt-form .btn { grid-column: 1 / -1; order: 2; }
 @media (min-width: 860px) {
-  .debt-form { grid-template-columns: 140px 180px minmax(0, 1fr) 170px auto; }
-  .debt-form .field-wide, .debt-form .btn { grid-column: auto; }
+  .debt-form { grid-template-columns: 150px minmax(0, 1fr) 170px auto; }
+  .debt-form .field-wide, .debt-form .btn { grid-column: auto; order: 0; }
 }
 .card-form { display: grid; gap: 6px; }
 .card-form .h { margin-bottom: 8px; }

@@ -126,12 +126,15 @@ service cloud.firestore {
       allow read: if active();
 
       // Нова заявка: завжди pending, без платежів і заявок, час — зараз.
-      // Кредитор вносить борг тільки собі; адмін і герой сайту — будь-кому.
+      // Кожен сам за себе: борг вносить тільки той, кому винні, і тільки собі.
+      // Навіть адмін не записує боргів за інших; герой сайту не вносить їх зовсім.
       allow create: if active()
         && incoming().keys().hasOnly(['amount', 'reason', 'creditor', 'creditorUid', 'author', 'due', 'status', 'payments', 'claim', 'ts'])
         && validDebt(incoming())
         && incoming().creditorUid is string && incoming().creditorUid.size() > 0
-        && (incoming().creditorUid == request.auth.uid || role() in ['admin', 'subject'])
+        && incoming().creditorUid == request.auth.uid
+        && incoming().creditor == myName()
+        && role() != 'subject'
         && exists(/databases/$(database)/documents/users/$(incoming().creditorUid))
         && incoming().author == myName()
         && incoming().status == 'pending'

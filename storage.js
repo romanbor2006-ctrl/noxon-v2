@@ -381,7 +381,7 @@
         if (op === "create") return validDebt(after) && after.status === "pending"
           && after.payments.length === 0 && after.claim === null && fresh(after.ts)
           && after.author === p.name && !!db.users[after.creditorUid]
-          && (after.creditorUid === uid || role === "admin" || role === "subject");
+          && after.creditorUid === uid && after.creditor === p.name && role !== "subject";
         if (admin && only(["status", "amount", "reason", "due", "creditor", "creditorUid"])
           && ["pending", "approved", "rejected"].includes(after.status) && validDebt(after)) return true;
         if (role === "subject" && before.status === "approved" && only(["claim"])
@@ -594,7 +594,8 @@
     resetDemo() { if (B.reset) { B.reset(); location.reload(); } },
 
     /* ---------------- БОРГИ ---------------- */
-    addDebt({ amount, reason, creditorUid, due }) {
+    // Кожен сам за себе: кредитор боргу — завжди той, хто подає заявку.
+    addDebt({ amount, reason, due }) {
       amount = Number(amount);
       reason = String(reason || "").trim();
       if (!Number.isInteger(amount) || amount < 1 || amount > L.amountMax)
@@ -602,12 +603,11 @@
       if (!reason) return Promise.reject(invalid("Напиши, за що."));
       if (reason.length > L.reasonMax) return Promise.reject(invalid("Опис — до " + L.reasonMax + " символів."));
       if (!/^\d{4}-\d{2}-\d{2}$/.test(due || "")) return Promise.reject(invalid("Вкажи дату повернення."));
-      const creditor = state.users.find((u) => u.id === creditorUid);
-      if (!creditor) return Promise.reject(invalid("Обери, кому винен."));
+      if (me.role === "subject") return Promise.reject(invalid("Герой сайту не вносить боргів сам собі."));
       return B.add("debts", {
         amount, reason,
-        creditor: creditor.name,
-        creditorUid: creditor.id,
+        creditor: me.name,
+        creditorUid: me.uid,
         author: me.name,
         due,
         status: "pending",

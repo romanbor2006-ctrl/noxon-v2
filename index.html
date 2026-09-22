@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 
-  <!-- ?v=3 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=4 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -49,7 +49,7 @@
 <!-- ================= САЙТ ================= -->
 <div class="app" id="app" hidden>
 
-  <header class="bar">
+  <header class="topbar">
     <div class="bar-in">
       <div class="brand">noxon<i>.</i></div>
       <span class="mode-badge" id="modeBadge" hidden>демо</span>
@@ -127,16 +127,12 @@
     </section>
 
     <!-- ФОРМА НОВОГО БОРГУ -->
-    <section class="card card-form">
+    <section class="card card-form" id="formBlock">
       <h2 class="h">Новий борг</h2>
       <form class="debt-form" id="debtForm" novalidate>
         <label class="field">
           <span>Сума, ₴</span>
           <input id="fAmount" type="number" inputmode="numeric" min="1" step="1" required>
-        </label>
-        <label class="field">
-          <span>Кому винен</span>
-          <select id="fCreditor" required></select>
         </label>
         <label class="field field-wide">
           <span>За що</span>
@@ -257,8 +253,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=3"></script>
-<script src="storage.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="storage.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

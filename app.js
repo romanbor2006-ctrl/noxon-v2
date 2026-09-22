@@ -150,7 +150,7 @@
         loginError(reason || "");
         // вийшов — прибираємо з розмітки все, що прийшло з бази
         ["dossier", "metrics", "hot", "about", "traits", "timeline", "creditors", "payday", "queue",
-         "calendar", "ledger", "pending", "people", "achievements", "rating", "comments", "meChip", "fCreditor", "fNote", "claimInfo"]
+         "calendar", "ledger", "pending", "people", "achievements", "rating", "comments", "meChip", "fNote", "claimInfo"]
           .forEach((id) => { $(id).innerHTML = ""; });
         subjectKey = null;
         document.title = C.siteName;
@@ -676,29 +676,12 @@
   });
 
   /* --- форма нового боргу ----------------------------------------
-     Кредитор вносить борг тільки собі — інакше можна було б наробити
-     боргів «для Ростика». Адмін і герой сайту обирають зі списку. */
+     Кожен сам за себе: борг записується лише на того, хто подає
+     заявку, і повертати його будуть тільки йому. Вибору «кому» немає
+     ні в кого, навіть в адміна. Герой сайту боргів собі не вносить. */
   function renderForm() {
-    const sel = $("fCreditor");
-    if (busy($("debtForm"))) return;
-    const keep = sel.value;
-
-    if (isAdmin() || isSubject()) {
-      const people = S.state.users.filter((u) => u.role !== "subject" && u.active !== false)
-        .sort((a, b) => a.name.localeCompare(b.name, "uk"));
-      sel.disabled = false;
-      sel.innerHTML = people.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}${u.id === me().uid ? " (ти)" : ""}</option>`).join("");
-      if (people.some((u) => u.id === keep)) sel.value = keep;
-      else if (people.some((u) => u.id === me().uid)) sel.value = me().uid;
-      $("fNote").textContent = isAdmin()
-        ? "Ти адмін: можеш внести борг за будь-кого. Заявка все одно піде на розгляд."
-        : "Обери, у кого позичив. Запис з'явиться після підтвердження адміном.";
-    } else {
-      sel.innerHTML = `<option value="${esc(me().uid)}">${esc(me().name)} (ти)</option>`;
-      sel.value = me().uid;
-      sel.disabled = true;
-      $("fNote").textContent = "Борг записується тобі — ти той, кому винні.";
-    }
+    $("formBlock").hidden = isSubject();
+    $("fNote").textContent = "Борг записується на тебе, " + me().name + ": повертати його будуть тільки тобі.";
   }
 
   $("debtForm").addEventListener("input", () => { $("fError").hidden = true; $("fOk").hidden = true; });
@@ -713,7 +696,6 @@
       await S.addDebt({
         amount: $("fAmount").value,
         reason: $("fReason").value,
-        creditorUid: $("fCreditor").value,
         due: $("fDue").value
       });
       $("fAmount").value = "";
