@@ -25,4 +25,49 @@ function nextDue(debts, calc) {
     .sort((a, b) => calc.daysLeft(a) - calc.daysLeft(b))[0] || null;
 }
 
-module.exports = { GROUPS, pickDue, nextDue };
+const nf = new Intl.NumberFormat("uk-UA");
+const money = (n) => nf.format(n) + " ₴";
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b === 1) return one;
+  if (b >= 2 && b <= 4) return few;
+  return many;
+}
+const inDays = (n) => n === 0 ? "сьогодні" : n === 1 ? "завтра" : `через ${n} ${plural(n, "день", "дні", "днів")}`;
+
+function debtLines(d, calc, heroName) {
+  const lines = [`• ${esc(d.creditor)} — ${money(calc.left(d))} за «${esc(d.reason)}»`];
+  const paid = calc.paid(d);
+  if (paid > 0) lines.push(`  (з ${money(d.amount)} уже повернуто ${money(paid)})`);
+  if (d.claim) lines.push(`  (${esc(heroName)} заявив, що віддав ${money(d.claim.amount)}, — чекає підтвердження)`);
+  return lines;
+}
+
+// null — надсилати нічого; інакше HTML-текст для Telegram (parse_mode: HTML)
+function formatMessage(groups, { calc, heroName = "Герой сайту", siteUrl, test = false, next = null }) {
+  const head = test ? "🧪 <b>noxon: тестовий запуск</b>\n\n" : "";
+  if (!groups.length) {
+    if (!test) return null;
+    const tail = next
+      ? `Найближче: ${esc(next.creditor)} — ${money(calc.left(next))} за «${esc(next.reason)}», ${inDays(calc.daysLeft(next))}.`
+      : "Відкритих боргів із майбутньою датою немає.";
+    return `${head}Нічого не горить.\n${tail}\n\n${siteUrl}`;
+  }
+  let total = 0;
+  const parts = [`${head}🔺 <b>noxon: наближаються дати повернення</b>`];
+  for (const g of groups) {
+    const lines = [`<b>${g.title}</b>`];
+    for (const d of g.debts) {
+      lines.push(...debtLines(d, calc, heroName));
+      total += calc.left(d);
+    }
+    parts.push(lines.join("\n"));
+  }
+  parts.push(`Разом у ці три дні: ${money(total)}`, siteUrl);
+  return parts.join("\n\n");
+}
+
+module.exports = { GROUPS, pickDue, nextDue, formatMessage, money, esc };
