@@ -501,7 +501,8 @@
       listen(cb, onError) {
         this.stop();
         unsubs = COLS.map((col) =>
-          db.collection(col).onSnapshot(
+          // includeMetadataChanges: щоб позначка _pending знімалась, щойно сервер підтвердив запис
+          db.collection(col).onSnapshot({ includeMetadataChanges: true },
             (snap) => {
               // _pending: запис ще не підтвердив сервер (може бути відхилений)
               state[col] = snap.docs.map((d) => Object.assign({ id: d.id, _pending: d.metadata.hasPendingWrites }, d.data()));
