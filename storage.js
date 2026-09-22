@@ -112,7 +112,7 @@
         const key = d.creditorUid || "name:" + d.creditor;
         if (!map.has(key)) {
           const u = state.users.find((x) => x.id === d.creditorUid);
-          map.set(key, { name: u ? u.name : d.creditor, sum: 0, count: 0 });
+          map.set(key, { key, name: u ? u.name : d.creditor, sum: 0, count: 0 });
         }
         const row = map.get(key);
         row.sum += calc.left(d);
@@ -434,7 +434,15 @@
 
     return {
       kind: "local",
-      onAuth(cb) { authCb = cb; setTimeout(() => cb(account(session())), 0); },
+      onAuth(cb) {
+        authCb = cb;
+        setTimeout(() => cb(session() === "guest" ? { uid: "guest", login: "guest", guest: true } : account(session())), 0);
+      },
+      signInGuest() {
+        try { localStorage.setItem(SESSION_KEY, "guest"); } catch (e) {}
+        authCb && authCb({ uid: "guest", login: "guest", guest: true });
+        return Promise.resolve();
+      },
       signIn(login, password) {
         const acc = read().accounts[login];
         if (!acc || acc.password !== password) {
@@ -479,8 +487,12 @@
       kind: "firebase",
       raw: { auth, db },   // для перевірки атак із консолі браузера
       onAuth(cb) {
-        auth.onAuthStateChanged((u) => cb(u ? { uid: u.uid, login: (u.email || "").split("@")[0] } : null));
+        auth.onAuthStateChanged((u) => cb(u
+          ? { uid: u.uid, login: (u.email || "").split("@")[0], guest: u.isAnonymous }
+          : null));
       },
+      // гість заходить анонімно: без акаунта, лише перегляд
+      signInGuest() { return auth.signInAnonymously(); },
       signIn(login, password) {
         return auth.signInWithEmailAndPassword(login + "@" + C.loginDomain, password);
       },
@@ -519,6 +531,12 @@
 
   const find = (id) => state.debts.find((d) => d.id === id);
 
+  // Гість — тільки перегляд. Кнопок йому не показують, але й прямий
+  // виклик має відмовити; у базі те саме роблять правила.
+  function guestBlocked() {
+    return me && me.guest ? Promise.reject(invalid("Режим гостя: тільки перегляд.")) : null;
+  }
+
   /* ============================================================
      ПУБЛІЧНИЙ ІНТЕРФЕЙС
      ============================================================ */
@@ -544,6 +562,13 @@
           clearState();
           onAuth(null, kickReason);
           kickReason = null;
+          return;
+        }
+        // Гість: профілю в базі немає, писати нічого не може.
+        if (acc.guest) {
+          me = { uid: acc.uid, login: "guest", name: "Гість", role: "guest", active: true, guest: true };
+          onAuth(me);
+          B.listen(onData, (err, col) => console.warn("noxon: підписка на «" + col + "» не працює:", err.code || err));
           return;
         }
         try {
@@ -603,6 +628,8 @@
       });
     },
 
+    loginGuest() { return B.signInGuest(); },
+
     login(login, password) {
       login = String(login || "").trim().toLowerCase();
       if (!/^[a-z0-9._-]{2,32}$/.test(login)) return Promise.reject(invalid("Логін — латиниця, цифри, крапка або дефіс."));
@@ -615,6 +642,7 @@
     /* ---------------- БОРГИ ---------------- */
     // Кожен сам за себе: кредитор боргу — завжди той, хто подає заявку.
     addDebt({ amount, reason, due }) {
+      const stop = guestBlocked(); if (stop) return stop;
       amount = Number(amount);
       reason = String(reason || "").trim();
       if (!Number.isInteger(amount) || amount < 1 || amount > L.amountMax)
@@ -635,9 +663,9 @@
         ts: Date.now()
       });
     },
-    approve(id) { return B.update("debts", id, { status: "approved" }); },
-    reject(id)  { return B.update("debts", id, { status: "rejected" }); },
-    removeDebt(id) { return B.remove("debts", id); },
+    approve(id) { return guestBlocked() || B.update("debts", id, { status: "approved" }); },
+    reject(id)  { return guestBlocked() || B.update("debts", id, { status: "rejected" }); },
+    removeDebt(id) { return guestBlocked() || B.remove("debts", id); },
 
     // старі записи без creditorUid: адмін вказує, чий це борг
     bindCreditor(id, uid) {
@@ -648,16 +676,18 @@
 
     // Герой сайту: "віддав X". Поки кредитор не підтвердив — не зараховується.
     claim(id, amount) {
+      const stop = guestBlocked(); if (stop) return stop;
       const d = find(id);
       amount = Math.round(Number(amount));
       if (!d) return Promise.reject(invalid("Запис не знайдено."));
       if (!(amount >= 1)) return Promise.reject(invalid("Вкажи суму."));
       return B.update("debts", id, { claim: { amount: Math.min(amount, calc.left(d)), ts: Date.now() } });
     },
-    cancelClaim(id) { return B.update("debts", id, { claim: null }); },
+    cancelClaim(id) { return guestBlocked() || B.update("debts", id, { claim: null }); },
 
     // Кредитор: "отримав" — один платіж у кінець списку, заявка гасне.
     confirm(id) {
+      const stop = guestBlocked(); if (stop) return stop;
       const d = find(id);
       if (!d || !d.claim) return Promise.reject(invalid("Заявки вже немає."));
       return B.update("debts", id, {
@@ -666,22 +696,24 @@
       });
     },
     // Кредитор: "не отримував" — заявка гасне, сума не змінюється.
-    deny(id) { return B.update("debts", id, { claim: null }); },
+    deny(id) { return guestBlocked() || B.update("debts", id, { claim: null }); },
 
     /* ---------------- ДОСЬЄ ---------------- */
     saveSubject(data) {
+      const stop = guestBlocked(); if (stop) return stop;
       if (!validSubject(data)) return Promise.reject(invalid("Перевір поля досьє: щось задовге або в неправильному форматі."));
       return B.set("site", "subject", data);
     },
 
     /* ---------------- ЛЮДИ ---------------- */
-    updateUser(uid, patch) { return B.update("users", uid, patch); },
+    updateUser(uid, patch) { return guestBlocked() || B.update("users", uid, patch); },
 
     /* ---------------- ВІДГУКИ ----------------
        Як у Google Maps: зірки + необов'язковий текст в одному документі.
        Ключ документа = мій uid, тож одна людина — один відгук: повторна
        публікація переписує старий, а написати за іншого неможливо. */
     saveReview({ value, text }) {
+      const stop = guestBlocked(); if (stop) return stop;
       value = Number(value);
       text = String(text || "").trim();
       if (!Number.isInteger(value) || value < 1 || value > 5) return Promise.reject(invalid("Постав від 1 до 5 зірок."));
@@ -690,6 +722,6 @@
       return B.set("ratings", me.uid, { value, text, user: me.name, ts: Date.now() });
     },
     // свій відгук — автор; чужий — лише адмін
-    removeReview(uid) { return B.remove("ratings", uid); }
+    removeReview(uid) { return guestBlocked() || B.remove("ratings", uid); }
   };
 })();

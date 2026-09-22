@@ -42,10 +42,22 @@
     return "через " + days(n);
   }
 
-  const ROLE = { admin: "адмін", subject: "герой сайту", member: "кредитор" };
+  const ROLE = { admin: "адмін", subject: "герой сайту", member: "кредитор", guest: "гість · тільки перегляд" };
   const me = () => S.me;
   const isAdmin = () => me() && me().role === "admin";
   const isSubject = () => me() && me().role === "subject";
+  const isGuest = () => !!(me() && me().guest);
+
+  /* Гість бачить суми й строки, але не імена: замість «Ростик» —
+     «Кредитор 1». Номер закріплюється за людиною на весь сеанс.
+     Це ширма в інтерфейсі, а не таємниця: самі записи гість читає. */
+  const aliases = new Map();
+  function mask(key, name, word) {
+    if (!isGuest()) return name;
+    if (!aliases.has(key)) aliases.set(key, (word || "Кредитор") + " " + (aliases.size + 1));
+    return aliases.get(key);
+  }
+  const creditorName = (d) => mask(d.creditorUid || "n:" + d.creditor, d.creditor);
 
   function humanError(err) {
     const code = err && err.code;
@@ -132,6 +144,14 @@
     } finally {
       btn.disabled = false;
     }
+  });
+
+  $("guestBtn").addEventListener("click", async () => {
+    loginError("");
+    try { await S.loginGuest(); }
+    catch (err) { loginError(err.code === "auth/operation-not-allowed"
+      ? "Режим гостя вимкнено в налаштуваннях Firebase."
+      : humanError(err)); }
   });
 
   $("logoutBtn").addEventListener("click", () => S.logout());
@@ -436,9 +456,14 @@
      ============================================================ */
   function renderAll() {
     if (!me()) return;
-    $("meChip").innerHTML = `<b>${esc(me().name)}</b><span>${ROLE[me().role] || esc(me().role)}</span>`;
+    $("meChip").innerHTML = isGuest()
+      ? `<b>Гість</b><span>тільки перегляд</span>`
+      : `<b>${esc(me().name)}</b><span>${ROLE[me().role] || esc(me().role)}</span>`;
     $("pendingBlock").hidden = !isAdmin();
     $("peopleBlock").hidden = !isAdmin();
+    $("formBlock").hidden = isGuest() || isSubject();
+    document.querySelector('#ledgerTabs [data-tab="other"]').hidden = isGuest();
+    if (isGuest() && tab === "other") tab = "open";
 
     renderSubject();
     renderMetrics();
@@ -481,7 +506,7 @@
           ${SIGN.warn("hot-sign")}
           <div class="hot-body">
             <p class="hot-state">${bad ? "Горить" : "Найближче"}</p>
-            <p class="hot-main"><b>${esc(first.creditor)}</b> чекає <span class="num" data-to="${q[0].left}">${money(q[0].left)}</span></p>
+            <p class="hot-main"><b>${esc(creditorName(first))}</b> чекає <span class="num" data-to="${q[0].left}">${money(q[0].left)}</span></p>
             <p class="hot-sub">${bad ? "прострочено на " + days(-n) + ", обіцяв до " + dShort(first.due)
               : "повернути " + dueText(n) + ", до " + dShort(first.due)}${q.length > 1 ? `, а в черзі ще ${q.length - 1}` : ""}</p>
           </div>
@@ -530,7 +555,7 @@
     const max = Math.max(...list.map((c) => c.sum));
     $("creditors").innerHTML = list.map((c) => `
       <div class="bar-row">
-        <div class="bar-top"><span>${esc(c.name)}</span><b>${money(c.sum)}</b></div>
+        <div class="bar-top"><span>${esc(mask(c.key || c.name, c.name))}</span><b>${money(c.sum)}</b></div>
         <div class="bar"><i style="width:${Math.max(3, (c.sum / max) * 100)}%"></i></div>
       </div>`).join("");
   }
@@ -564,7 +589,7 @@
       <li class="${n < 0 ? "is-bad" : ""}">
         ${n < 0 ? SIGN.warn("q-sign") : `<span class="q-num">${i + 1}</span>`}
         <span class="q-main">
-          <b>${esc(debt.creditor)}</b> <span class="q-sum">${money(left)}</span>
+          <b>${esc(creditorName(debt))}</b> <span class="q-sum">${money(left)}</span>
           <small>${dueText(n)}, до ${dShort(debt.due)}</small>
         </span>
         <span class="q-cum" title="Разом із попередніми">${money(cumulative)}</span>
@@ -583,7 +608,7 @@
         : c.date.getDate();
       lastMonth = m;
       const title = c.items.length
-        ? c.items.map((d) => d.creditor + " — " + money(K.left(d))).join(", ")
+        ? c.items.map((d) => creditorName(d) + " — " + money(K.left(d))).join(", ")
         : (c.payday ? "зарплата" : "");
       const cls = ["cal-cell", c.past && "past", c.today && "today", c.sum && "due", c.payday && "pay"].filter(Boolean).join(" ");
       return `
@@ -647,7 +672,7 @@
     <article class="debt ${cls}">
       <header class="debt-head">
         <div>
-          <p class="debt-who">${esc(d.creditor)}</p>
+          <p class="debt-who">${esc(creditorName(d))}</p>
           <p class="debt-why">${esc(d.reason)}</p>
         </div>
         <div class="debt-amt">
@@ -663,7 +688,7 @@
       <dl class="debt-dates">
         <div><dt>взяв</dt><dd>${dFull(d.ts)}</dd></div>
         <div><dt>до</dt><dd>${dFull(d.due)}</dd></div>
-        <div><dt>вніс</dt><dd>${esc(d.author)}</dd></div>
+        ${isGuest() ? "" : `<div><dt>вніс</dt><dd>${esc(d.author)}</dd></div>`}
       </dl>
       ${(d.payments || []).length ? `
         <details class="payments"><summary>Платежі (${d.payments.length})</summary>
@@ -684,7 +709,7 @@
           <button class="btn btn-sm btn-ok" data-act="confirm" data-id="${esc(d.id)}">Отримав</button>
           <button class="btn btn-sm btn-ghost" data-act="deny" data-id="${esc(d.id)}">Не отримував</button>`;
         else if (isSubject()) side = `<button class="btn btn-sm btn-ghost" data-act="cancel" data-id="${esc(d.id)}">Скасувати заявку</button>`;
-        else side = `<span class="muted">чекає підтвердження від ${esc(d.creditor)}</span>`;
+        else side = `<span class="muted">чекає підтвердження від ${esc(creditorName(d))}</span>`;
         out.push(`
           <div class="claim">
             <p>${esc(heroName())} каже, що віддав <b>${money(d.claim.amount)}</b> · ${dTime(d.claim.ts)}</p>
@@ -768,7 +793,7 @@
      заявку, і повертати його будуть тільки йому. Вибору «кому» немає
      ні в кого, навіть в адміна. Герой сайту боргів собі не вносить. */
   function renderForm() {
-    $("formBlock").hidden = isSubject();
+    $("formBlock").hidden = isSubject() || isGuest();
     $("fNote").textContent = "Борг записується на тебе, " + me().name + ": повертати його будуть тільки тобі.";
   }
 
@@ -921,7 +946,7 @@
         <header class="rv-head">
           <span class="avatar">${esc((r.user || "?")[0].toUpperCase())}</span>
           <div class="rv-meta">
-            <b>${esc(r.user)}${own ? ' <small class="rv-you">твій відгук</small>' : ""}</b>
+            <b>${esc(mask("rv:" + r.id, r.user, "Учасник"))}${own ? ' <small class="rv-you">твій відгук</small>' : ""}</b>
             <span>${starsLine(r.value, "sm")}<time title="${esc(dTime(r.ts))}">${ago(r.ts)}</time></span>
           </div>
           ${own ? `
@@ -962,6 +987,8 @@
       $("rvMine").innerHTML = "";
     } else if (mine) {
       $("rvMine").innerHTML = reviewCard(mine, true);
+    } else if (isGuest()) {
+      $("rvMine").innerHTML = `<p class="hint">Режим гостя: відгуки можна читати, але не писати.</p>`;
     } else if (isSubject()) {
       // як власник закладу в Google Maps: сам себе не оцінює
       $("rvMine").innerHTML = `<p class="hint">Це відгуки про тебе. Оцінювати себе не можна — лише читати.</p>`;

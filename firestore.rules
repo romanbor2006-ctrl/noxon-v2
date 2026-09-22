@@ -31,8 +31,13 @@ service cloud.firestore {
     function isOwner()   { return signedIn() && request.auth.token.email == ownerEmail(); }
     function isOwnerDoc(d) { return d.get('login', '') == ownerEmail().split('@')[0]; }
 
-    function active()    { return isOwner() || (signedIn() && exists(meRef()) && meDoc().get('active', false) == true); }
+    // Гість заходить анонімно: бачить борг, досьє й відгуки, але не має
+    // профілю, тож жодна умова на запис для нього не виконується.
+    function isGuest()   { return signedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
+
+    function active()    { return isOwner() || (signedIn() && !isGuest() && exists(meRef()) && meDoc().get('active', false) == true); }
     function role()      { return isOwner() ? 'admin' : meDoc().get('role', 'member'); }
+    function canRead()   { return active() || isGuest(); }
     function isAdmin()   { return active() && role() == 'admin'; }
     function isSubject() { return active() && role() == 'subject'; }
     function myName()    { return meDoc().get('name', ''); }
@@ -53,7 +58,7 @@ service cloud.firestore {
       allow read: if active() || (signedIn() && request.auth.uid == uid);
 
       // новий профіль — тільки свій і активний; кредитор (власник — одразу адмін)
-      allow create: if signedIn() && request.auth.uid == uid
+      allow create: if signedIn() && !isGuest() && request.auth.uid == uid
         && incoming().keys().hasOnly(['login', 'name', 'role', 'active'])
         && incoming().login == request.auth.token.email.split('@')[0]
         && validName(incoming().name)
@@ -136,7 +141,7 @@ service cloud.firestore {
     }
 
     match /debts/{id} {
-      allow read: if active();
+      allow read: if canRead();
 
       // Нова заявка: завжди pending, без платежів і заявок, час — зараз.
       // Кожен сам за себе: борг вносить тільки той, кому винні, і тільки собі.
@@ -179,7 +184,7 @@ service cloud.firestore {
     }
 
     match /site/{doc} {
-      allow read: if active();
+      allow read: if canRead();
       allow create, update: if isAdmin() && doc == 'subject' && validSubject(incoming());
       allow delete: if false;
     }
@@ -189,7 +194,7 @@ service cloud.firestore {
     // і написати за іншого неможливо. Тому окремий антиспам не потрібен:
     // повторна публікація лише переписує свій же документ.
     match /ratings/{uid} {
-      allow read: if active();
+      allow read: if canRead();
       // герой сайту сам себе не оцінює — як власник закладу в Google Maps
       allow create, update: if active() && request.auth.uid == uid
         && role() != 'subject'

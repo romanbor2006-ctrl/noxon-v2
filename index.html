@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,400..800&family=Commissioner:wght@400;500;600;700&display=swap">
 
-  <!-- ?v=10 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=11 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -41,7 +41,9 @@
     <p class="form-error" id="loginError" role="alert" hidden></p>
     <button class="btn btn-accent btn-block" type="submit">Увійти</button>
 
-    <p class="login-note">Акаунти видає адмін. Реєстрації немає.</p>
+    <div class="login-or"><span>або</span></div>
+    <button class="btn btn-ghost btn-block" id="guestBtn" type="button">Увійти як гість</button>
+    <p class="login-note">Гість бачить актуальний борг, але нічого не змінює й не бачить, кому саме винен Дмитро. Акаунти видає адмін, реєстрації немає.</p>
     <p class="login-demo" id="loginDemo" hidden></p>
   </form>
 </main>
@@ -277,8 +279,8 @@
   <button class="btn btn-sm btn-accent" id="updateBtn" type="button">Оновити</button>
 </div>
 
-<script src="config.js?v=10"></script>
-<script src="storage.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="config.js?v=11"></script>
+<script src="storage.js?v=11"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

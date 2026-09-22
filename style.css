@@ -286,6 +286,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
   border-left: 4px solid var(--yellow);
 }
 
+.login-or {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 13px;
+  margin: -4px 0;
+}
+.login-or::before, .login-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
 /* ---------------- ШАПКА ---------------- */
 
 .topbar {
