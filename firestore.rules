@@ -1,0 +1,207 @@
+// ============================================================
+// firestore.rules — правила доступу до бази noxon.
+//
+// ЦЕЙ ФАЙЛ — ДЖЕРЕЛО ПРАВДИ. Публікується командою з кореня
+// репозиторію (поруч лежить firebase.json):
+//
+//   firebase deploy --only firestore:rules
+//
+// Головний принцип: браузеру не віримо. Усе, що можна підробити
+// в коді сайту, перевіряється тут.
+//
+// Поля старих записів читаємо через get('поле', замінник):
+// якщо поля немає, вираз не падає, а помилка в одному правилі
+// в Firestore блокує весь запит.
+// ============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- хто я -------------------------------------------------
+    // Роль беремо з бази, а не з браузера: те, що прийшло від
+    // людини, ніколи не є підставою для прав.
+    function signedIn()  { return request.auth != null; }
+    function meRef()     { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function meDoc()     { return get(meRef()).data; }
+    function active()    { return signedIn() && exists(meRef()) && meDoc().get('active', false) == true; }
+    function role()      { return meDoc().get('role', 'member'); }
+    function isAdmin()   { return active() && role() == 'admin'; }
+    function isSubject() { return active() && role() == 'subject'; }
+    function myName()    { return meDoc().get('name', ''); }
+
+    // Час запису має бути справжнім: ±5 хвилин від серверного.
+    function now() { return request.time.toMillis(); }
+    function freshTs(v) { return v is int && v > now() - 300000 && v < now() + 300000; }
+
+    function incoming() { return request.resource.data; }
+    function stored()   { return resource.data; }
+    function changed()  { return incoming().diff(stored()).affectedKeys(); }
+
+    function validName(v) { return v is string && v.size() > 0 && v.size() <= 40; }
+
+    // --- ЛЮДИ ---------------------------------------------------
+    match /users/{uid} {
+      // свій профіль видно завжди — щоб сайт зрозумів, що тебе вимкнули
+      allow read: if active() || (signedIn() && request.auth.uid == uid);
+
+      // новий профіль — тільки свій, тільки кредитор і тільки активний
+      allow create: if signedIn() && request.auth.uid == uid
+        && incoming().keys().hasOnly(['login', 'name', 'role', 'active'])
+        && incoming().login == request.auth.token.email.split('@')[0]
+        && validName(incoming().name)
+        && incoming().role == 'member'
+        && incoming().active == true;
+
+      // ім'я, роль, доступ — лише адмін. Логін незмінний.
+      // Собі роль і доступ не міняє: інакше адміна повернути вже
+      // можна тільки руками в консолі.
+      allow update: if isAdmin()
+        && changed().hasOnly(['name', 'role', 'active'])
+        && validName(incoming().name)
+        && incoming().role in ['admin', 'subject', 'member']
+        && incoming().active is bool
+        && (uid != request.auth.uid || !changed().hasAny(['role', 'active']));
+
+      // видалення профілю = повернення людини як нового кредитора
+      // при наступному вході. Вимикаємо галочкою, а не видаляємо.
+      allow delete: if false;
+    }
+
+    // --- БОРГИ --------------------------------------------------
+    function validDebt(d) {
+      return d.amount is int && d.amount >= 1 && d.amount <= 100000
+        && d.reason is string && d.reason.size() > 0 && d.reason.size() <= 80
+        && validName(d.creditor)
+        && d.get('creditorUid', '') is string
+        && d.due is string && d.due.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function oldPayments() { return stored().get('payments', []); }
+    function newPayments() { return incoming().get('payments', []); }
+
+    // Адмін модерує: статус, сума, дата, опис, кредитор.
+    // Платежі й заявки НЕ чіпає — інакше закрив би борг сам.
+    function adminStep() {
+      return isAdmin()
+        && changed().hasOnly(['status', 'amount', 'reason', 'due', 'creditor', 'creditorUid'])
+        && incoming().status in ['pending', 'approved', 'rejected']
+        && validDebt(incoming());
+    }
+
+    // Герой сайту заявляє "віддав" (або скасовує заявку) — міняє ТІЛЬКИ claim
+    function claimStep() {
+      return isSubject()
+        && stored().get('status', '') == 'approved'
+        && changed().hasOnly(['claim'])
+        && (incoming().claim == null
+            || (incoming().claim.keys().hasOnly(['amount', 'ts'])
+                && incoming().claim.amount is int
+                && incoming().claim.amount >= 1
+                && incoming().claim.amount <= stored().amount
+                && freshTs(incoming().claim.ts)));
+    }
+
+    // Кредитор відповідає на заявку. Або "не отримував" (claim → null,
+    // платежі ті самі), або "отримав": у кінець списку дописується рівно
+    // один платіж на суму із заявки, старі платежі не змінюються.
+    function confirmStep() {
+      let claim = stored().get('claim', null);
+      let n = oldPayments().size();
+      return active()
+        && stored().get('creditorUid', '') == request.auth.uid
+        && stored().get('status', '') == 'approved'
+        && claim != null
+        && changed().hasOnly(['claim', 'payments'])
+        && incoming().get('claim', null) == null
+        && (!changed().hasAny(['payments'])
+            || (newPayments().size() == n + 1
+                && newPayments()[0:n] == oldPayments()
+                && newPayments()[n].keys().hasOnly(['amount', 'ts'])
+                && newPayments()[n].amount == claim.amount
+                && freshTs(newPayments()[n].ts)));
+    }
+
+    match /debts/{id} {
+      allow read: if active();
+
+      // Нова заявка: завжди pending, без платежів і заявок, час — зараз.
+      // Кредитор вносить борг тільки собі; адмін і герой сайту — будь-кому.
+      allow create: if active()
+        && incoming().keys().hasOnly(['amount', 'reason', 'creditor', 'creditorUid', 'author', 'due', 'status', 'payments', 'claim', 'ts'])
+        && validDebt(incoming())
+        && incoming().creditorUid is string && incoming().creditorUid.size() > 0
+        && (incoming().creditorUid == request.auth.uid || role() in ['admin', 'subject'])
+        && exists(/databases/$(database)/documents/users/$(incoming().creditorUid))
+        && incoming().author == myName()
+        && incoming().status == 'pending'
+        && incoming().payments == []
+        && incoming().claim == null
+        && freshTs(incoming().ts);
+
+      allow update: if adminStep() || claimStep() || confirmStep();
+      allow delete: if isAdmin();
+    }
+
+    // --- ДОСЬЄ --------------------------------------------------
+    // Ім'я, дата народження, робота, контакти й фото реальної людини
+    // живуть тут, а не в коді сайту: репозиторій публічний, а цей
+    // документ читають лише залогінені й активні. Змінює — адмін.
+    function shortStr(v, max) { return v is string && v.size() <= max; }
+    function validSubject(d) {
+      return d.keys().hasOnly(['name', 'tagline', 'birthday', 'city', 'job', 'telegram', 'instagram', 'about', 'traits', 'timeline', 'photo'])
+        && shortStr(d.name, 60) && d.name.size() > 0
+        && shortStr(d.tagline, 140)
+        && (d.birthday == '' || (d.birthday is string && d.birthday.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && shortStr(d.city, 80) && shortStr(d.job, 120)
+        && shortStr(d.telegram, 200) && shortStr(d.instagram, 200)
+        && d.about is list && d.about.size() <= 10
+        && d.traits is list && d.traits.size() <= 12
+        && d.timeline is list && d.timeline.size() <= 30
+        && shortStr(d.photo, 400000)
+        && (d.photo == '' || d.photo.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$'));
+    }
+
+    match /site/{doc} {
+      allow read: if active();
+      allow create, update: if isAdmin() && doc == 'subject' && validSubject(incoming());
+      allow delete: if false;
+    }
+
+    // --- ОЦІНКИ -------------------------------------------------
+    // id документа = uid того, хто голосує: одна людина — одна оцінка,
+    // і проголосувати за іншого неможливо
+    match /ratings/{uid} {
+      allow read: if active();
+      allow create, update: if active() && request.auth.uid == uid
+        && incoming().keys().hasOnly(['value', 'user', 'ts'])
+        && incoming().value is int && incoming().value >= 1 && incoming().value <= 5
+        && incoming().user == myName()
+        && freshTs(incoming().ts);
+      allow delete: if isAdmin() || (active() && request.auth.uid == uid);
+    }
+
+    // --- КОМЕНТАРІ ----------------------------------------------
+    // Антиспам живе в ключі: uid_хвилина_слот. Дозволені лише слоти
+    // 0–4 поточної та попередньої хвилини, а зайнятий документ база
+    // створити не дасть (оновлення заборонені). 5 коментарів на хвилину.
+    function slot(m, s) { return request.auth.uid + '_' + string(m) + '_' + string(s); }
+    function slotOk(cid) {
+      let m = math.floor(now() / 60000);
+      return cid in [slot(m, 0), slot(m, 1), slot(m, 2), slot(m, 3), slot(m, 4),
+                     slot(m - 1, 0), slot(m - 1, 1), slot(m - 1, 2), slot(m - 1, 3), slot(m - 1, 4)];
+    }
+
+    match /comments/{cid} {
+      allow read: if active();
+      allow create: if active() && slotOk(cid)
+        && incoming().keys().hasOnly(['uid', 'user', 'text', 'ts'])
+        && incoming().uid == request.auth.uid
+        && incoming().user == myName()
+        && incoming().text is string && incoming().text.size() > 0 && incoming().text.size() <= 500
+        && freshTs(incoming().ts);
+      allow update: if false;
+      allow delete: if isAdmin() || (active() && stored().get('uid', '') == request.auth.uid);
+    }
+  }
+}

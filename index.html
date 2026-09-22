@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <title>noxon</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+
+  <!-- ?v=2 — номер версії. Браузер кешує файли за адресою, тож без
+       нього люди після оновлення бачать стару копію сайту.
+       ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
+  <link rel="stylesheet" href="style.css?v=2">
+
+  <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<!-- ================= ВХІД ================= -->
+<main class="login" id="login">
+  <form class="login-card" id="loginForm" novalidate>
+    <div class="brand brand-big">noxon<i>.</i></div>
+    <p class="login-lead">Спільна пам'ять про борги. Вхід лише для своїх.</p>
+
+    <label class="field">
+      <span>Логін</span>
+      <input id="loginName" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </label>
+    <label class="field">
+      <span>Пароль</span>
+      <input id="loginPass" type="password" autocomplete="current-password" required>
+    </label>
+
+    <p class="form-error" id="loginError" role="alert" hidden></p>
+    <button class="btn btn-accent btn-block" type="submit">Увійти</button>
+
+    <p class="login-note">Акаунти видає адмін. Реєстрації немає.</p>
+    <p class="login-demo" id="loginDemo" hidden></p>
+  </form>
+</main>
+
+<!-- ================= САЙТ ================= -->
+<div class="app" id="app" hidden>
+
+  <header class="bar">
+    <div class="bar-in">
+      <div class="brand">noxon<i>.</i></div>
+      <span class="mode-badge" id="modeBadge" hidden>демо</span>
+      <div class="bar-tools">
+        <span class="me" id="meChip"></span>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Змінити тему">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="currentColor"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Вийти</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- ДОСЬЄ -->
+    <section class="hero" id="dossier" aria-label="Досьє"></section>
+
+    <!-- ЧОТИРИ МЕТРИКИ -->
+    <section class="metrics" id="metrics" aria-label="Головне"></section>
+    <p class="hot" id="hot"></p>
+
+    <!-- ОПИС, ХАРАКТЕРИСТИКИ, ХРОНОЛОГІЯ -->
+    <div class="row">
+      <section class="card">
+        <h2 class="h">Хто це</h2>
+        <div class="prose" id="about"></div>
+        <h3 class="h h-sub">Хронологія</h3>
+        <ol class="timeline" id="timeline"></ol>
+      </section>
+      <section class="card">
+        <h2 class="h">Характеристики</h2>
+        <div class="traits" id="traits"></div>
+      </section>
+    </div>
+
+    <!-- КОМУ СКІЛЬКИ + НАЙБЛИЖЧА ВИПЛАТА -->
+    <div class="row">
+      <section class="card">
+        <h2 class="h">Кому скільки</h2>
+        <div class="bars" id="creditors"></div>
+      </section>
+      <section class="card card-payday" id="payday"></section>
+    </div>
+
+    <!-- ЧЕРГА + КАЛЕНДАР -->
+    <div class="row">
+      <section class="card">
+        <h2 class="h">Черга повернення</h2>
+        <p class="hint">За датою повернення. Праворуч — скільки треба разом із попередніми.</p>
+        <ol class="queue" id="queue"></ol>
+      </section>
+      <section class="card">
+        <h2 class="h">Календар</h2>
+        <div class="cal-head" aria-hidden="true">
+          <span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>нд</span>
+        </div>
+        <div class="cal" id="calendar"></div>
+        <p class="hint cal-legend"><i class="dot dot-due"></i> треба віддати <i class="dot dot-pay"></i> зарплата</p>
+      </section>
+    </div>
+
+    <!-- РЕЄСТР -->
+    <section class="section">
+      <div class="section-head">
+        <h2 class="h">Реєстр боргу</h2>
+        <div class="tabs" id="ledgerTabs" role="tablist">
+          <button type="button" role="tab" data-tab="open" aria-selected="true">Відкриті</button>
+          <button type="button" role="tab" data-tab="closed" aria-selected="false">Закриті</button>
+          <button type="button" role="tab" data-tab="other" aria-selected="false">Заявки</button>
+        </div>
+      </div>
+      <p class="hint">Герой сайту тисне «Віддав», кредитор підтверджує «Отримав» — лише тоді сума зараховується.</p>
+      <div class="ledger" id="ledger"></div>
+    </section>
+
+    <!-- ФОРМА НОВОГО БОРГУ -->
+    <section class="card card-form">
+      <h2 class="h">Новий борг</h2>
+      <form class="debt-form" id="debtForm" novalidate>
+        <label class="field">
+          <span>Сума, ₴</span>
+          <input id="fAmount" type="number" inputmode="numeric" min="1" step="1" required>
+        </label>
+        <label class="field">
+          <span>Кому винен</span>
+          <select id="fCreditor" required></select>
+        </label>
+        <label class="field field-wide">
+          <span>За що</span>
+          <input id="fReason" type="text" required>
+        </label>
+        <label class="field">
+          <span>Повернути до</span>
+          <input id="fDue" type="date" required>
+        </label>
+        <button class="btn btn-accent" type="submit">Подати заявку</button>
+      </form>
+      <p class="hint" id="fNote"></p>
+      <p class="form-error" id="fError" role="alert" hidden></p>
+      <p class="form-ok" id="fOk" hidden>Заявку подано. Вона з'явиться в реєстрі після підтвердження адміном.</p>
+    </section>
+
+    <!-- НА РОЗГЛЯДІ (адмін) -->
+    <section class="card card-admin" id="pendingBlock" hidden>
+      <h2 class="h">На розгляді <span class="count" id="pendingCount"></span></h2>
+      <div class="pending" id="pending"></div>
+    </section>
+
+    <!-- ЛЮДИ (адмін) -->
+    <section class="card card-admin" id="peopleBlock" hidden>
+      <h2 class="h">Люди</h2>
+      <p class="hint">Акаунти створюються в консолі Firebase. Тут — ім'я, роль і доступ. Зберігається одразу.</p>
+      <div class="people" id="people"></div>
+    </section>
+
+    <!-- АЧІВКИ -->
+    <section class="section">
+      <h2 class="h">Ачівки</h2>
+      <div class="achievements" id="achievements"></div>
+    </section>
+
+    <!-- НАРОДНА ОЦІНКА -->
+    <section class="card">
+      <h2 class="h">Народна оцінка</h2>
+      <div class="rating" id="rating"></div>
+    </section>
+
+    <!-- КОМЕНТАРІ -->
+    <section class="section">
+      <h2 class="h">Коментарі</h2>
+      <form class="comment-form" id="commentForm">
+        <textarea id="commentText" rows="2" placeholder="Що скажеш?" required></textarea>
+        <div class="comment-row">
+          <span class="hint" id="commentCount"></span>
+          <button class="btn btn-accent" type="submit">Надіслати</button>
+        </div>
+      </form>
+      <p class="form-error" id="commentError" role="alert" hidden></p>
+      <div class="comments" id="comments"></div>
+    </section>
+
+    <footer class="foot">
+      <span>noxon — внутрішній інструмент. Грошей не переказує, юридичної сили не має — лише фіксує домовленості.</span>
+      <button class="link-btn" id="resetDemo" type="button" hidden>скинути демо-дані</button>
+    </footer>
+  </main>
+</div>
+
+<!-- Діалог «Віддав» -->
+<dialog class="dialog" id="claimDialog">
+  <form method="dialog" id="claimForm">
+    <h3>Скільки віддав?</h3>
+    <p class="hint" id="claimInfo"></p>
+    <label class="field">
+      <span>Сума, ₴</span>
+      <input id="claimAmount" type="number" inputmode="numeric" min="1" step="1" required>
+    </label>
+    <div class="chips" id="claimChips"></div>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" value="cancel" type="button" id="claimCancel">Скасувати</button>
+      <button class="btn btn-accent" value="ok" type="submit">Заявити</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Діалог «Редагувати досьє» (адмін). Дані йдуть у Firestore site/subject -->
+<dialog class="dialog dialog-wide" id="subjectDialog">
+  <form id="subjectForm" novalidate>
+    <h3>Досьє</h3>
+    <p class="hint">Зберігається в базі й видно лише після входу. У коді сайту цих даних немає.</p>
+
+    <div class="photo-edit">
+      <div class="photo-preview" id="sPhotoPreview"></div>
+      <div class="photo-tools">
+        <label class="btn btn-sm btn-soft file-btn">
+          Обрати фото
+          <input id="sPhotoFile" type="file" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <button class="link-btn danger" id="sPhotoClear" type="button">прибрати фото</button>
+        <span class="hint" id="sPhotoInfo"></span>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label class="field"><span>Ім'я</span><input id="sName" maxlength="60" required></label>
+      <label class="field"><span>Дата народження</span><input id="sBirthday" type="date"></label>
+      <label class="field field-wide"><span>Підпис під іменем</span><input id="sTagline" maxlength="140"></label>
+      <label class="field"><span>Місто</span><input id="sCity" maxlength="80"></label>
+      <label class="field"><span>Робота</span><input id="sJob" maxlength="120"></label>
+      <label class="field"><span>Telegram</span><input id="sTelegram" type="url" maxlength="200" placeholder="https://t.me/…"></label>
+      <label class="field"><span>Instagram</span><input id="sInstagram" type="url" maxlength="200" placeholder="https://instagram.com/…"></label>
+      <label class="field field-wide"><span>Хто це — абзаци через порожній рядок</span><textarea id="sAbout" rows="4"></textarea></label>
+      <label class="field"><span>Характеристики — «Назва = 7»</span><textarea id="sTraits" rows="4"></textarea></label>
+      <label class="field"><span>Хронологія — «2006 — подія»</span><textarea id="sTimeline" rows="4"></textarea></label>
+    </div>
+
+    <p class="form-error" id="sError" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" type="button" id="sCancel">Скасувати</button>
+      <button class="btn btn-accent" type="submit">Зберегти</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="config.js?v=2"></script>
+<script src="storage.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
