@@ -11,7 +11,7 @@ window.CONFIG = {
   /* Де лежать дані:
      "local"    — localStorage цього браузера + тестові акаунти (етап 1);
      "firebase" — спільна хмарна база для всіх (етап 3). */
-  backend: "local",
+  backend: "firebase",
 
   firebase: {
     apiKey: "AIzaSyAMInBJQIf2ewHvVEEG3sSIuCMONN0qp7A",
