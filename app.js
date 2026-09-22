@@ -153,6 +153,9 @@
          "calendar", "ledger", "pending", "people", "achievements", "rvSummary", "rvMine", "rvToolbar", "rvList", "meChip", "fNote", "claimInfo"]
           .forEach((id) => { $(id).innerHTML = ""; });
         subjectKey = null;
+        introDone = false;
+        $("hot")._html = null;
+        $("metrics")._html = null;
         rvEditing = false;
         document.title = C.siteName;
         return;
@@ -171,6 +174,58 @@
     tg: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M21.5 4.3 2.9 11.5c-1.3.5-1.2 1.3-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5ZM8.9 14.2l9-5.7c.4-.3.8-.1.5.2l-7.4 6.7-.3 3.1-1.8-4.3Z"/></svg>',
     ig: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 7.3a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4Zm0 7.7a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm6-7.9a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0ZM12 2c-2.7 0-3 0-4.1.1C4.2 2.3 2.3 4.2 2.1 7.9 2 9 2 9.3 2 12s0 3 .1 4.1c.2 3.7 2.1 5.6 5.8 5.8 1.1.1 1.4.1 4.1.1s3 0 4.1-.1c3.7-.2 5.6-2.1 5.8-5.8.1-1.1.1-1.4.1-4.1s0-3-.1-4.1c-.2-3.7-2.1-5.6-5.8-5.8C15 2 14.7 2 12 2Zm0 1.8c2.7 0 3 0 4 .1 2.7.1 4 1.4 4.1 4.1.1 1 .1 1.3.1 4s0 3-.1 4c-.1 2.7-1.4 4-4.1 4.1-1 .1-1.3.1-4 .1s-3 0-4-.1c-2.7-.1-4-1.4-4.1-4.1-.1-1-.1-1.3-.1-4s0-3 .1-4C4 5.3 5.3 4 8 3.9c1-.1 1.3-.1 4-.1Z"/></svg>'
   };
+
+  /* --- дорожні знаки ---------------------------------------------
+     Мова сайту — дорожні знаки: червоний трикутник «Увага» — прострочене,
+     жовтий ромб — надійність, синя табличка — інформація, білий круг
+     з косою рискою — «кінець обмеження», тобто закрито. Малюємо SVG,
+     щоб трикутник був справжнім, а не символом ▲. */
+  const SIGN = {
+    warn: (cls = "") => `<svg class="sign sign-warn ${cls}" viewBox="0 0 100 90" aria-hidden="true">
+        <path class="sign-edge" pathLength="100" d="M50 83 H7 L50 7 L93 83 Z"/>
+        <g class="sign-mark"><rect x="45.5" y="32" width="9" height="28" rx="4"/><circle cx="50" cy="70" r="5.5"/></g>
+      </svg>`,
+    info: (glyph, cls = "") => `<svg class="sign sign-info ${cls}" viewBox="0 0 100 100" aria-hidden="true">
+        <rect x="5" y="5" width="90" height="90" rx="14"/><text x="50" y="68" text-anchor="middle">${glyph}</text>
+      </svg>`,
+    diamond: (cls = "") => `<svg class="sign sign-diamond ${cls}" viewBox="0 0 100 100" aria-hidden="true">
+        <rect class="d-out" x="17" y="17" width="66" height="66" rx="6" transform="rotate(45 50 50)"/>
+        <rect class="d-in" x="29" y="29" width="42" height="42" rx="3" transform="rotate(45 50 50)"/>
+      </svg>`,
+    round: (glyph, cls = "") => `<svg class="sign sign-round ${cls}" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="44"/><text x="50" y="66" text-anchor="middle">${glyph}</text>
+      </svg>`,
+    end: (cls = "") => `<svg class="sign sign-end ${cls}" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="44"/><path d="M22 78 L78 22 M30 84 L84 30 M16 70 L70 16"/>
+      </svg>`
+  };
+
+  const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Одна вступна мить після входу: знак промальовується, суми відлічуються.
+  let introDone = false;
+  function countUp(el) {
+    const to = Number(el.dataset.to) || 0;
+    if (!to || reduceMotion()) return;
+    const start = performance.now(), dur = 900;
+    const tick = (t) => {
+      const k = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - k, 3);
+      el.textContent = money(Math.round(to * eased));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    el.textContent = money(0);
+    requestAnimationFrame(tick);
+  }
+
+  // Не перемальовувати, якщо нічого не змінилось: Firebase шле кілька
+  // знімків поспіль, і анімація знака обривалась би на півдорозі.
+  function put(el, html) {
+    if (el._html === html) return false;
+    el._html = html;
+    el.innerHTML = html;
+    return true;
+  }
 
   /* ============================================================
      ДОСЬЄ — з бази (site/subject), а не з коду.
@@ -201,7 +256,6 @@
       $("dossier").innerHTML = `
         <div class="hero-photo"><span>?</span></div>
         <div class="hero-body">
-          <p class="eyebrow">Досьє · № 001</p>
           <h1 class="hero-name">Досьє порожнє</h1>
           <p class="hero-tag">${isAdmin() ? "Заповни його — дані збережуться в базі й будуть видні лише після входу." : "Адмін ще не заповнив досьє."}</p>
           <div class="hero-links">${editBtn}</div>
@@ -214,7 +268,7 @@
 
     document.title = C.siteName + " · " + s.name;
     const facts = [];
-    if (s.birthday) facts.push(["Вік", K.age(s.birthday) + " · " + dFull(s.birthday)]);
+    if (s.birthday) facts.push(["Вік", K.age(s.birthday) + " (" + dFull(s.birthday) + ")"]);
     if (s.city) facts.push(["Місто", s.city]);
     if (s.job) facts.push(["Робота", s.job]);
     const tg = safeUrl(s.telegram), ig = safeUrl(s.instagram);
@@ -222,7 +276,6 @@
     $("dossier").innerHTML = `
       <div class="hero-photo" id="heroPhoto"><span>${esc((s.name || "?")[0])}</span></div>
       <div class="hero-body">
-        <p class="eyebrow">Досьє · № 001</p>
         <h1 class="hero-name">${esc(s.name)}</h1>
         ${s.tagline ? `<p class="hero-tag">${esc(s.tagline)}</p>` : ""}
         ${facts.length ? `<dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : ""}
@@ -400,44 +453,74 @@
     renderReviews();
   }
 
-  /* --- метрики + «що горить» ------------------------------------ */
+  /* --- «Що горить» + чотири метрики -----------------------------
+     Критерій успіху з ТЗ: за п'ять секунд видно, кому винен і що
+     горить. Тому головний елемент сторінки — знак «Увага». */
   function renderMetrics() {
     const t = K.totals();
     const r = K.reliability();
     const rt = K.rating();
+    const q = K.queue();
 
-    $("metrics").innerHTML = `
-      <div class="metric metric-main">
+    // знак
+    let hot;
+    if (!q.length) {
+      hot = `
+        <div class="hot hot-clear">
+          ${SIGN.info("✓", "hot-sign")}
+          <div class="hot-body">
+            <p class="hot-state">Рух вільний</p>
+            <p class="hot-main">Відкритих боргів немає</p>
+          </div>
+        </div>`;
+    } else {
+      const first = q[0].debt, n = K.daysLeft(first);
+      const bad = n < 0;
+      hot = `
+        <div class="hot ${bad ? "hot-bad" : "hot-soon"}">
+          ${SIGN.warn("hot-sign")}
+          <div class="hot-body">
+            <p class="hot-state">${bad ? "Горить" : "Найближче"}</p>
+            <p class="hot-main"><b>${esc(first.creditor)}</b> чекає <span class="num" data-to="${q[0].left}">${money(q[0].left)}</span></p>
+            <p class="hot-sub">${bad ? "прострочено на " + days(-n) + ", обіцяв до " + dShort(first.due)
+              : "повернути " + dueText(n) + ", до " + dShort(first.due)}${q.length > 1 ? `, а в черзі ще ${q.length - 1}` : ""}</p>
+          </div>
+        </div>`;
+    }
+    const hotChanged = put($("hot"), hot);
+    if (hotChanged && !introDone && S.state.debts.length) {
+      introDone = true;
+      if (!reduceMotion()) {
+        $("hot").firstElementChild.classList.add("intro");
+        $("hot").querySelectorAll("[data-to]").forEach(countUp);
+      }
+    }
+
+    put($("metrics"), `
+      <div class="metric metric-total">
+        ${SIGN.info("₴", "m-sign")}
         <span class="m-label">Загальний борг</span>
         <strong class="m-value">${money(t.total)}</strong>
         <span class="m-sub">${t.count ? t.count + " " + plural(t.count, "відкритий борг", "відкриті борги", "відкритих боргів") : "боргів немає"}</span>
       </div>
       <div class="metric ${t.overdueCount ? "metric-bad" : ""}">
+        ${t.overdueCount ? SIGN.warn("m-sign") : SIGN.end("m-sign")}
         <span class="m-label">Прострочено</span>
         <strong class="m-value">${money(t.overdue)}</strong>
         <span class="m-sub">${t.overdueCount ? t.overdueCount + " " + plural(t.overdueCount, "борг", "борги", "боргів") : "усе в строк"}</span>
       </div>
       <div class="metric">
+        ${SIGN.diamond("m-sign")}
         <span class="m-label">Індекс надійності</span>
         <strong class="m-value">${r.percent === null ? "—" : r.percent + "%"}</strong>
-        <span class="m-sub">${r.percent === null ? "ще нічого не закрито" : `вчасно ${r.onTime} · пізно ${r.late} · висить ${r.overdue}`}</span>
+        <span class="m-sub">${r.percent === null ? "ще нічого не закрито" : `вчасно ${r.onTime}, пізно ${r.late}, висить ${r.overdue}`}</span>
       </div>
       <div class="metric">
+        ${SIGN.round("★", "m-sign")}
         <span class="m-label">Народна оцінка</span>
         <strong class="m-value">${rt.count ? rt.avg.toFixed(1).replace(".", ",") + "<small>/5</small>" : "—"}</strong>
         <span class="m-sub">${rt.count ? rt.count + " " + plural(rt.count, "відгук", "відгуки", "відгуків") : "ще ніхто не оцінив"}</span>
-      </div>`;
-
-    // Критерій успіху: за п'ять секунд видно, що горить
-    const q = K.queue();
-    if (!q.length) {
-      $("hot").innerHTML = `<span class="hot-ok">Нічого не горить — усі борги закриті.</span>`;
-      return;
-    }
-    const first = q[0].debt, n = K.daysLeft(first);
-    $("hot").innerHTML = `
-      <span class="hot-label ${n < 0 ? "is-bad" : ""}">${n < 0 ? "Горить" : "Найближче"}</span>
-      <span><b>${esc(first.creditor)}</b> — ${money(q[0].left)}, ${dueText(n)}${n >= 0 ? " (" + dShort(first.due) + ")" : ""}</span>`;
+      </div>`);
   }
 
   /* --- кому скільки ---------------------------------------------- */
@@ -479,12 +562,12 @@
       const n = K.daysLeft(debt);
       return `
       <li class="${n < 0 ? "is-bad" : ""}">
-        <span class="q-num">${i + 1}</span>
+        ${n < 0 ? SIGN.warn("q-sign") : `<span class="q-num">${i + 1}</span>`}
         <span class="q-main">
-          <b>${esc(debt.creditor)}</b> · ${money(left)}
-          <small>${dueText(n)} · ${dShort(debt.due)}</small>
+          <b>${esc(debt.creditor)}</b> <span class="q-sum">${money(left)}</span>
+          <small>${dueText(n)}, до ${dShort(debt.due)}</small>
         </span>
-        <span class="q-cum">${money(cumulative)}</span>
+        <span class="q-cum" title="Разом із попередніми">${money(cumulative)}</span>
       </li>`;
     }).join("");
   }
@@ -557,7 +640,7 @@
     if (d.status === "pending") { badge = `<span class="badge b-wait">на розгляді</span>`; cls = "is-pending"; }
     else if (d.status === "rejected") { badge = `<span class="badge b-mute">відхилено</span>`; cls = "is-rejected"; }
     else if (K.isClosed(d)) { badge = `<span class="badge b-ok">закрито</span>`; cls = "is-closed"; }
-    else if (n < 0) { badge = `<span class="badge b-bad">прострочено ${days(-n)}</span>`; cls = "is-overdue"; }
+    else if (n < 0) { badge = `<span class="badge b-bad">${SIGN.warn("b-sign")}прострочено ${days(-n)}</span>`; cls = "is-overdue"; }
     else { badge = `<span class="badge b-open">${dueText(n)}</span>`; }
 
     return `
@@ -573,9 +656,15 @@
         </div>
       </header>
       ${d.status === "approved" ? `
-        <div class="progress" role="img" aria-label="Повернуто ${pct}%"><i style="width:${pct}%"></i></div>
-        <p class="debt-meta"><span>повернуто ${money(paid)}</span><span>${left ? "лишилось " + money(left) : "✓ повністю"}</span></p>` : ""}
-      <p class="debt-dates">взяв ${dFull(d.ts)} · до ${dFull(d.due)} · вніс ${esc(d.author)}</p>
+        <div class="progress" role="img" aria-label="Повернуто ${pct}%" style="--p:${pct}%">
+          <i></i><b class="progress-mark"></b>
+        </div>
+        <p class="debt-meta"><span>повернуто ${money(paid)}</span><span>${left ? "лишилось " + money(left) : "повністю"}</span></p>` : ""}
+      <dl class="debt-dates">
+        <div><dt>взяв</dt><dd>${dFull(d.ts)}</dd></div>
+        <div><dt>до</dt><dd>${dFull(d.due)}</dd></div>
+        <div><dt>вніс</dt><dd>${esc(d.author)}</dd></div>
+      </dl>
       ${(d.payments || []).length ? `
         <details class="payments"><summary>Платежі (${d.payments.length})</summary>
           <ul>${d.payments.map((p) => `<li><span>${dFull(p.ts)}</span><b>${money(p.amount)}</b></li>`).join("")}</ul>
@@ -783,11 +872,18 @@
     if (t.dataset.active) act(S.updateUser(t.dataset.active, { active: t.checked }), t.checked ? "Доступ увімкнено" : "Доступ вимкнено");
   });
 
-  /* --- ачівки ------------------------------------------------------ */
+  /* --- ачівки: кожна — свій знак ----------------------------------- */
+  const ACH_SIGN = {
+    clean: () => SIGN.end("ach-sign"),
+    early: () => SIGN.info("⚡", "ach-sign"),
+    quiet: () => SIGN.info("☾", "ach-sign"),
+    record: () => SIGN.warn("ach-sign"),
+    repeat: () => SIGN.diamond("ach-sign")
+  };
   function renderAchievements() {
     $("achievements").innerHTML = K.achievements().map((a) => `
       <div class="ach ${a.earned ? "on" : ""}">
-        <span class="ach-icon" aria-hidden="true">${a.icon}</span>
+        ${(ACH_SIGN[a.id] || ACH_SIGN.early)()}
         <b>${esc(a.title)}</b>
         <small>${a.earned && a.amount ? "найбільший борг — " + money(a.amount) : esc(a.hint)}</small>
         <span class="ach-state">${a.earned ? "здобуто" : "ще ні"}</span>
