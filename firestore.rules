@@ -24,8 +24,15 @@ service cloud.firestore {
     function signedIn()  { return request.auth != null; }
     function meRef()     { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function meDoc()     { return get(meRef()).data; }
-    function active()    { return signedIn() && exists(meRef()) && meDoc().get('active', false) == true; }
-    function role()      { return meDoc().get('role', 'member'); }
+    // Власник — головний адмін. Визначається за адресою входу з токена
+    // Firebase Auth, а не за полем у базі: підробити чи зіпсувати не можна.
+    // Той самий логін стоїть у config.js → ownerLogin.
+    function ownerEmail() { return 'roman@noxon.local'; }
+    function isOwner()   { return signedIn() && request.auth.token.email == ownerEmail(); }
+    function isOwnerDoc(d) { return d.get('login', '') == ownerEmail().split('@')[0]; }
+
+    function active()    { return isOwner() || (signedIn() && exists(meRef()) && meDoc().get('active', false) == true); }
+    function role()      { return isOwner() ? 'admin' : meDoc().get('role', 'member'); }
     function isAdmin()   { return active() && role() == 'admin'; }
     function isSubject() { return active() && role() == 'subject'; }
     function myName()    { return meDoc().get('name', ''); }
@@ -45,23 +52,28 @@ service cloud.firestore {
       // свій профіль видно завжди — щоб сайт зрозумів, що тебе вимкнули
       allow read: if active() || (signedIn() && request.auth.uid == uid);
 
-      // новий профіль — тільки свій, тільки кредитор і тільки активний
+      // новий профіль — тільки свій і активний; кредитор (власник — одразу адмін)
       allow create: if signedIn() && request.auth.uid == uid
         && incoming().keys().hasOnly(['login', 'name', 'role', 'active'])
         && incoming().login == request.auth.token.email.split('@')[0]
         && validName(incoming().name)
-        && incoming().role == 'member'
+        && ((isOwner() && incoming().role == 'admin') || (!isOwner() && incoming().role == 'member'))
         && incoming().active == true;
 
-      // ім'я, роль, доступ — лише адмін. Логін незмінний.
-      // Собі роль і доступ не міняє: інакше адміна повернути вже
-      // можна тільки руками в консолі.
+      // Ім'я, роль, доступ — лише адмін. Логін незмінний.
+      // 1) Профіль власника: роль і доступ можуть бути лише admin / true —
+      //    зняти права з власника не може ніхто, навіть він сам
+      //    (а зіпсований профіль будь-який адмін може лише полагодити).
+      // 2) Роль адміна видає й знімає тільки власник. Звичайний адмін
+      //    не змінює роль і доступ іншим адмінам і самому собі.
       allow update: if isAdmin()
         && changed().hasOnly(['name', 'role', 'active'])
         && validName(incoming().name)
         && incoming().role in ['admin', 'subject', 'member']
         && incoming().active is bool
-        && (uid != request.auth.uid || !changed().hasAny(['role', 'active']));
+        && (!isOwnerDoc(stored()) || (incoming().role == 'admin' && incoming().active == true))
+        && (!changed().hasAny(['role', 'active']) || isOwner()
+            || (stored().get('role', 'member') != 'admin' && incoming().role != 'admin'));
 
       // видалення профілю = повернення людини як нового кредитора
       // при наступному вході. Вимикаємо галочкою, а не видаляємо.

@@ -46,6 +46,9 @@
     return e;
   }
 
+  // Власник (головний адмін) — за логіном входу, не за полем у базі
+  const isOwnerLogin = (login) => !!login && login === C.ownerLogin;
+
   /* ---------------- СТАН -------------------------------------- */
   const COLS = ["users", "debts", "ratings", "comments", "site"];
   const state = { users: [], debts: [], ratings: [], comments: [], site: [] };
@@ -296,7 +299,7 @@
       debt("rostyk", 1500, "шаурма і проїзд", at(-5), -20, { payments: [{ amount: 500, ts: ts(-8) }] });
       debt("oleh", 3000, "на новий телефон", at(3), -12, { claim: { amount: 1000, ts: ts(-1) } });
       debt("rostyk", 6000, "оренда за місяць", at(20), -6);
-      debt("admin", 800, "квитки в кіно", at(-30), -45, { payments: [{ amount: 800, ts: ts(-33) }] });
+      debt("roman", 800, "квитки в кіно", at(-30), -45, { payments: [{ amount: 800, ts: ts(-33) }] });
       debt("oleh", 2000, "подарунок мамі", at(-60), -90, { payments: [{ amount: 1000, ts: ts(-58) }, { amount: 1000, ts: ts(-50) }] });
       debt("oleh", 400, "таксі додому", at(10), 0, { status: "pending", author: "Олег" });
 
@@ -353,8 +356,10 @@
     function allowed(op, col, id, before, after, uid) {
       const db = read();
       const p = db.users[uid];
-      const active = !!p && p.active === true;
-      const role = p ? p.role : null;
+      const myLogin = Object.keys(db.accounts).find((l) => db.accounts[l].uid === uid);
+      const owner = isOwnerLogin(myLogin);
+      const active = owner || (!!p && p.active === true);
+      const role = owner ? "admin" : (p ? p.role : null);
       const admin = active && role === "admin";
       const fresh = (v) => Number.isInteger(v) && Math.abs(v - Date.now()) < 300000;
       const changed = () => {
@@ -368,10 +373,15 @@
         && validName(d.creditor) && /^\d{4}-\d{2}-\d{2}$/.test(d.due);
 
       if (col === "users") {
-        if (op === "create") return id === uid && after.role === "member" && after.active === true && validName(after.name);
+        if (op === "create") return id === uid && after.active === true && validName(after.name)
+          && after.role === (owner ? "admin" : "member");
+        const touchesAccess = changed().some((k) => k === "role" || k === "active");
         if (op === "update") return admin && only(["name", "role", "active"]) && validName(after.name)
           && ["admin", "subject", "member"].includes(after.role) && typeof after.active === "boolean"
-          && (id !== uid || !changed().some((k) => k === "role" || k === "active"));
+          // профіль власника: роль і доступ лише admin / true
+          && (!isOwnerLogin(before.login) || (after.role === "admin" && after.active === true))
+          // роль адміна видає і знімає тільки власник; звичайний адмін не чіпає адмінів і себе
+          && (!touchesAccess || owner || (before.role !== "admin" && after.role !== "admin"));
         return false;
       }
       if (!active) return false;
@@ -493,7 +503,8 @@
         unsubs = COLS.map((col) =>
           db.collection(col).onSnapshot(
             (snap) => {
-              state[col] = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+              // _pending: запис ще не підтвердив сервер (може бути відхилений)
+              state[col] = snap.docs.map((d) => Object.assign({ id: d.id, _pending: d.metadata.hasPendingWrites }, d.data()));
               cb();
             },
             (err) => onError && onError(err)
@@ -524,6 +535,7 @@
     state,
     calc,
     get me() { return me; },
+    isOwnerLogin,
 
     // досьє з бази; null — ще не заповнене
     get subject() { return state.site.find((d) => d.id === "subject") || null; },
@@ -544,32 +556,41 @@
         try {
           let p = await B.getProfile(acc.uid);
           if (!p) {
-            // Перший вхід: профіль завжди "кредитор". Підвищує лише адмін.
+            // Перший вхід: профіль — "кредитор" (власник — одразу адмін).
             const profile = {
               login: acc.login,
               name: (acc.login[0] || "?").toUpperCase() + acc.login.slice(1),
-              role: "member",
+              role: isOwnerLogin(acc.login) ? "admin" : "member",
               active: true
             };
             await B.createProfile(acc.uid, profile);
             p = Object.assign({ id: acc.uid }, profile);
           }
-          if (p.active === false) {
+          const owner = isOwnerLogin(acc.login);
+          // Власник не може втратити права: якщо профіль зіпсовано — лікуємо
+          if (owner && (p.role !== "admin" || p.active !== true)) {
+            try { await B.update("users", acc.uid, { role: "admin", active: true }); } catch (e) {}
+            p = Object.assign({}, p, { role: "admin", active: true });
+          }
+          if (!owner && p.active === false) {
             kickReason = "Цей логін вимкнено адміністратором.";
             await B.signOut();
             return;
           }
-          me = { uid: acc.uid, login: p.login, name: p.name, role: p.role, active: p.active };
+          me = { uid: acc.uid, login: acc.login, name: p.name, role: owner ? "admin" : p.role, active: true, owner };
           onAuth(me);
           B.listen(() => {
             // адмін міг щойно змінити мені роль чи вимкнути доступ
-            const fresh = state.users.find((u) => u.id === me.uid);
-            if (fresh && fresh.active === false) {
+            // Зважаємо лише на підтверджене сервером: Firestore спершу показує
+            // запис локально, а відхилений сервером — відкочує. Без цієї
+            // перевірки відхилена атака «вимкни себе» розлогінювала б людину.
+            const fresh = state.users.find((u) => u.id === me.uid && !u._pending);
+            if (fresh && fresh.active === false && !me.owner) {
               kickReason = "Доступ вимкнено адміністратором.";
               B.signOut();
               return;
             }
-            if (fresh) me = { uid: me.uid, login: fresh.login, name: fresh.name, role: fresh.role, active: true };
+            if (fresh) me = { uid: me.uid, login: me.login, name: fresh.name, role: me.owner ? "admin" : fresh.role, active: true, owner: me.owner };
             onData();
           }, (err) => {
             if (err.code === "permission-denied") {

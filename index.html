@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 
-  <!-- ?v=4 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=5 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -158,7 +158,7 @@
     <!-- ЛЮДИ (адмін) -->
     <section class="card card-admin" id="peopleBlock" hidden>
       <h2 class="h">Люди</h2>
-      <p class="hint">Акаунти створюються в консолі Firebase. Тут — ім'я, роль і доступ. Зберігається одразу.</p>
+      <p class="hint">Акаунти створюються в консолі Firebase. Тут — ім'я, роль і доступ; зберігається одразу. Роль адміна видає й знімає лише власник.</p>
       <div class="people" id="people"></div>
     </section>
 
@@ -253,8 +253,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=4"></script>
-<script src="storage.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="config.js?v=5"></script>
+<script src="storage.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

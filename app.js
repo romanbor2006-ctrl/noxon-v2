@@ -737,26 +737,36 @@
   });
 
   /* --- люди (адмін) ---------------------------------------------------
-     Собі роль і доступ адмін не міняє: знизивши себе, повернути
-     адміна можна буде лише руками в консолі Firebase. */
+     Власник (CONFIG.ownerLogin) — головний адмін: його роль і доступ
+     не змінює ніхто, навіть він сам. Роль адміна видає й знімає лише
+     власник; звичайний адмін не чіпає адмінів і самого себе. Те саме
+     перевіряють правила бази — тут лише не показуємо зайвих кнопок. */
   function renderPeople() {
     const box = $("people");
     if (busy(box)) return;
-    const list = [...S.state.users].sort((a, b) => (a.name || "").localeCompare(b.name || "", "uk"));
+    const iOwn = !!me().owner;
+    const list = [...S.state.users].sort((a, b) =>
+      (S.isOwnerLogin(b.login) - S.isOwnerLogin(a.login)) || (a.name || "").localeCompare(b.name || "", "uk"));
     box.innerHTML = list.length ? list.map((u) => {
       const self = u.id === me().uid;
+      const owner = S.isOwnerLogin(u.login);
+      const locked = owner || (!iOwn && (self || u.role === "admin"));
+      const why = owner ? "Власника не можна понизити чи вимкнути"
+        : locked ? "Роль адміна видає й знімає лише власник" : "Доступ";
+      // пункт «адмін» у списку бачить лише власник (або якщо людина вже адмін)
+      const roles = Object.entries(ROLE).filter(([v]) => v !== "admin" || iOwn || u.role === "admin");
       return `
-      <div class="person ${u.active === false ? "is-off" : ""}">
+      <div class="person ${u.active === false && !owner ? "is-off" : ""}">
         <span class="avatar">${esc((u.name || "?")[0].toUpperCase())}</span>
         <div class="person-name">
           <input value="${esc(u.name || "")}" maxlength="${C.limits.nameMax}" data-name="${esc(u.id)}" aria-label="Ім'я">
-          <small>${esc(u.login || "")}${self ? " · це ти" : ""}</small>
+          <small>${esc(u.login || "")}${owner ? " · власник" : ""}${self ? " · це ти" : ""}</small>
         </div>
-        <select data-role="${esc(u.id)}" ${self ? "disabled" : ""} aria-label="Роль">
-          ${Object.entries(ROLE).map(([v, l]) => `<option value="${v}" ${u.role === v ? "selected" : ""}>${l}</option>`).join("")}
+        <select data-role="${esc(u.id)}" ${locked ? "disabled" : ""} aria-label="Роль" title="${why}">
+          ${roles.map(([v, l]) => `<option value="${v}" ${(owner ? "admin" : u.role) === v ? "selected" : ""}>${l}</option>`).join("")}
         </select>
-        <label class="switch" title="${self ? "Себе вимкнути не можна" : "Доступ"}">
-          <input type="checkbox" data-active="${esc(u.id)}" ${u.active !== false ? "checked" : ""} ${self ? "disabled" : ""}>
+        <label class="switch" title="${why}">
+          <input type="checkbox" data-active="${esc(u.id)}" ${owner || u.active !== false ? "checked" : ""} ${locked ? "disabled" : ""}>
           <span>активний</span>
         </label>
       </div>`;
