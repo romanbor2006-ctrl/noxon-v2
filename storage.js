@@ -500,7 +500,7 @@
               state[col] = snap.docs.map((d) => Object.assign({ id: d.id, _pending: d.metadata.hasPendingWrites }, d.data()));
               cb();
             },
-            (err) => onError && onError(err)
+            (err) => onError && onError(err, col)
           ));
       },
       stop() { unsubs.forEach((u) => u()); unsubs = []; },
@@ -585,10 +585,15 @@
             }
             if (fresh) me = { uid: me.uid, login: me.login, name: fresh.name, role: me.owner ? "admin" : fresh.role, active: true, owner: me.owner };
             onData();
-          }, (err) => {
-            if (err.code === "permission-denied") {
+          }, (err, col) => {
+            // Розлогінюємо лише тоді, коли закрито список людей: це означає,
+            // що мене вимкнули. Відмова на будь-якій іншій колекції (наприклад,
+            // її прибрали з правил) не має викидати людину з сайту.
+            if (err.code === "permission-denied" && col === "users" && !me.owner) {
               kickReason = "Доступ закрито. Звернись до адміна.";
               B.signOut();
+            } else {
+              console.warn("noxon: підписка на «" + col + "» не працює:", err.code || err);
             }
           });
         } catch (err) {

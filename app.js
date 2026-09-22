@@ -1075,5 +1075,20 @@
       $("rvSubmit").disabled = !rvDraft;
     }
   });
+  /* --- нова версія сайту --------------------------------------------
+     Відкрита вкладка може жити днями й працювати зі старим кодом, який
+     уже не збігається з правилами бази. Раз на 5 хвилин і щоразу, коли
+     людина повертається на вкладку, дивимось, чи не вийшла нова версія. */
+  const myVersion = (document.querySelector('script[src*="app.js"]').src.match(/[?&]v=(\d+)/) || [])[1];
+  async function checkVersion() {
+    if (!myVersion || !$("updateBar").hidden) return;
+    try {
+      const html = await fetch("index.html?check=" + Date.now(), { cache: "no-store" }).then((r) => r.text());
+      const live = (html.match(/app\.js\?v=(\d+)/) || [])[1];
+      if (live && live !== myVersion) $("updateBar").hidden = false;
+    } catch (e) { /* немає мережі — перевіримо пізніше */ }
+  }
+  setInterval(checkVersion, 5 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkVersion(); });
+  $("updateBtn").addEventListener("click", () => location.reload());
 })();
-
