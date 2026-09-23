@@ -79,3 +79,14 @@ test("екранує текст із бази", () => {
   assert.ok(text.includes("• &lt;i&gt;Ро&lt;/i&gt; —"));
   assert.ok(text.includes("«&lt;b&gt;x&lt;/b&gt; &amp; y»"));
 });
+
+const { buildKeyboard } = require("./reminders");
+
+test("клавіатура: «Віддати» і «Відкрити сайт»", () => {
+  assert.deepEqual(buildKeyboard({ payUrl: "https://pay", siteUrl: SITE }), {
+    inline_keyboard: [[{ text: "💸 Віддати", url: "https://pay" }, { text: "🔗 Відкрити сайт", url: SITE }]],
+  });
+  assert.deepEqual(buildKeyboard({ siteUrl: SITE }), {
+    inline_keyboard: [[{ text: "🔗 Відкрити сайт", url: SITE }]],
+  });
+});

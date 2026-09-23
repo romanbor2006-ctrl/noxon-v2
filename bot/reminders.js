@@ -70,4 +70,12 @@ function formatMessage(groups, { calc, heroName = "Герой сайту", siteU
   return parts.join("\n\n");
 }
 
-module.exports = { GROUPS, pickDue, nextDue, formatMessage, money, esc };
+// Кнопки під нагадуванням: посилання, тож сервер для них не потрібен
+function buildKeyboard({ payUrl, siteUrl }) {
+  const row = [];
+  if (payUrl) row.push({ text: "💸 Віддати", url: payUrl });
+  if (siteUrl) row.push({ text: "🔗 Відкрити сайт", url: siteUrl });
+  return { inline_keyboard: [row] };
+}
+
+module.exports = { GROUPS, pickDue, nextDue, formatMessage, buildKeyboard, money, esc };

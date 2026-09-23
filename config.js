@@ -8,6 +8,10 @@ window.CONFIG = {
 
   siteName: "noxon",
 
+  /* Публічні посилання для кнопок Telegram-бота */
+  siteUrl: "https://noxon-app.vercel.app",
+  payUrl: "https://send.monobank.ua/jar/79EiWaQiie",   // банка Monobank для кнопки «Віддати»
+
   /* Де лежать дані:
      "local"    — localStorage цього браузера + тестові акаунти (етап 1);
      "firebase" — спільна хмарна база для всіх (етап 3). */
