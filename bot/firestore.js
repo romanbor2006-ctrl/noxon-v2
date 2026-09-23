@@ -20,6 +20,21 @@ function decodeFields(fields) {
   return out;
 }
 
+function encodeValue(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === "boolean") return { booleanValue: v };
+  if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === "string") return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(encodeValue) } };
+  return { mapValue: { fields: encodeFields(v) } };
+}
+
+function encodeFields(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = encodeValue(v);
+  return out;
+}
+
 function decodeDocument(doc) {
   return { id: doc.name.split("/").pop(), ...decodeFields(doc.fields) };
 }
@@ -36,6 +51,36 @@ async function signInAnonymously(apiKey) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Firebase: анонімний вхід не вдався (${(body.error && body.error.message) || res.status}).`);
   return body.idToken;
+}
+
+// Вхід звичайним акаунтом (для бота-модератора bot@noxon.local)
+async function signInWithPassword(apiKey, email, password) {
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Firebase: вхід ${email} не вдався (${(body.error && body.error.message) || res.status}).`);
+  return { idToken: body.idToken, uid: body.localId };
+}
+
+// Оновити лише вказані поля; mustNotExist — створити, лише якщо документа ще немає
+async function patchDocument(projectId, docPath, fields, idToken, { mustNotExist = false } = {}) {
+  const mask = Object.keys(fields).map((k) => "updateMask.fieldPaths=" + encodeURIComponent(k)).join("&");
+  const url = `${docsUrl(projectId)}/${docPath}?${mask}${mustNotExist ? "&currentDocument.exists=false" : ""}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer " + idToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: encodeFields(fields) }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(`Firestore: не вдалося записати ${docPath} (${(body.error && body.error.status) || res.status}).`);
+    err.status = body.error && body.error.status;
+    throw err;
+  }
+  return decodeDocument(body);
 }
 
 async function readJson(url, idToken, what) {
@@ -63,4 +108,8 @@ async function getDocument(projectId, docPath, idToken) {
   return body ? decodeDocument(body) : null;
 }
 
-module.exports = { decodeFields, decodeDocument, signInAnonymously, listCollection, getDocument };
+module.exports = {
+  decodeFields, decodeDocument, encodeFields,
+  signInAnonymously, signInWithPassword,
+  listCollection, getDocument, patchDocument,
+};

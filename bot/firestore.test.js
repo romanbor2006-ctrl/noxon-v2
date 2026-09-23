@@ -20,3 +20,17 @@ test("розбирає типізовані значення Firestore REST", ()
     payments: [{ amount: 500, ts: 17 }], empty: [],
   });
 });
+
+const { encodeFields } = require("./firestore");
+
+test("кодує значення для запису в Firestore REST", () => {
+  assert.deepEqual(encodeFields({ status: "approved", notified: true, amount: 1500, rate: 1.5, claim: null, tags: ["a"], meta: { x: 1 } }), {
+    status: { stringValue: "approved" },
+    notified: { booleanValue: true },
+    amount: { integerValue: "1500" },
+    rate: { doubleValue: 1.5 },
+    claim: { nullValue: null },
+    tags: { arrayValue: { values: [{ stringValue: "a" }] } },
+    meta: { mapValue: { fields: { x: { integerValue: "1" } } } },
+  });
+});
