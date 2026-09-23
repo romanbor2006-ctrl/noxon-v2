@@ -209,6 +209,52 @@ service cloud.firestore {
       allow delete: if isAdmin() || (active() && request.auth.uid == uid);
     }
 
+    // --- ВІДПОВІДІ ПІД ВІДГУКАМИ ---------------------------------
+    // Антиспам у ключі: uid_хвилина_слот, слоти 0–2 поточної й
+    // попередньої хвилини. Зайнятий ключ створити вдруге не можна.
+    function rslot(m, s) { return request.auth.uid + '_' + string(m) + '_' + string(s); }
+    function replySlotOk(rid) {
+      let m = math.floor(now() / 60000);
+      return rid in [rslot(m, 0), rslot(m, 1), rslot(m, 2), rslot(m - 1, 0), rslot(m - 1, 1), rslot(m - 1, 2)];
+    }
+
+    match /replies/{rid} {
+      allow read: if canRead();
+      allow create: if active() && replySlotOk(rid)
+        && incoming().keys().hasOnly(['reviewId', 'uid', 'user', 'text', 'ts'])
+        && incoming().uid == request.auth.uid
+        && incoming().user == myName()
+        && incoming().reviewId is string && incoming().reviewId.size() > 0
+        && exists(/databases/$(database)/documents/ratings/$(incoming().reviewId))
+        && incoming().text is string && incoming().text.size() > 0 && incoming().text.size() <= 300
+        && freshTs(incoming().ts);
+      allow update: if false;
+      allow delete: if isAdmin() || (active() && stored().get('uid', '') == request.auth.uid);
+    }
+
+    // --- ВЛАСНІ АЧІВКИ Й ПОСЛУГИ ДМИТРА — редагує лише адмін -------
+    match /badges/{id} {
+      allow read: if canRead();
+      allow create, update: if isAdmin()
+        && incoming().keys().hasOnly(['title', 'desc', 'icon', 'earned', 'ts'])
+        && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 40
+        && incoming().desc is string && incoming().desc.size() <= 120
+        && incoming().icon is string && incoming().icon.size() <= 8
+        && incoming().earned is bool && incoming().ts is int;
+      allow delete: if isAdmin();
+    }
+
+    match /services/{id} {
+      allow read: if canRead();
+      allow create, update: if isAdmin()
+        && incoming().keys().hasOnly(['title', 'price', 'desc', 'ts'])
+        && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 60
+        && incoming().price is int && incoming().price >= 0 && incoming().price <= 100000
+        && incoming().desc is string && incoming().desc.size() <= 200
+        && incoming().ts is int;
+      allow delete: if isAdmin();
+    }
+
     // Колекцію comments більше не використовуємо: коментарі стали
     // частиною відгуків. Без правила вона закрита для всіх.
   }

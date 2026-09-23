@@ -37,7 +37,8 @@ window.CONFIG = {
     amountMax: 100000,
     reasonMax: 80,
     nameMax: 40,
-    reviewMax: 500
+    reviewMax: 500,
+    replyMax: 300
   },
 
   currency: "₴",

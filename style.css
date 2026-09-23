@@ -12,26 +12,27 @@
    ============================================================ */
 
 :root {
-  --bg: #E7E9EC;          /* асфальт удень */
-  --bg-2: #DCDFE4;        /* заглиблення: доріжки, клітинки */
+  --bg: #EEF1F6;          /* асфальт удень */
+  --bg-2: #E1E6EF;        /* заглиблення: доріжки, клітинки */
   --plate: #FFFFFF;       /* табличка */
   --ink: #14171C;
   --muted: #5B6270;
   --line: #C4C9D1;
 
-  --red: #D7263D;
-  --red-soft: #FBE2E5;
-  --yellow: #FFC21A;
-  --yellow-soft: #FFF2CC;
+  --red: #FF1F44;
+  --red-soft: #FFE0E6;
+  --yellow: #FFD20A;
+  --yellow-soft: #FFF6C7;
   --yellow-ink: #3A2A00;
-  --blue: #1E4FB0;
+  --blue: #1F5BFF;
   --blue-ink: #FFFFFF;
-  --blue-soft: #E0E8F7;
-  --ok: #1B7F4C;
-  --ok-soft: #D9F0E3;
-  --star: #E8A600;
+  --blue-soft: #DFE8FF;
+  --ok: #00A862;
+  --ok-soft: #D2F7E4;
+  --star: #FFB300;
 
   --sign-white: #FFFFFF;  /* поле знака — біле в обох темах */
+  --tri-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48'%3E%3Cpath d='M28 8 L48 42 H8 Z' fill='none' stroke='%231F5BFF' stroke-opacity='.07' stroke-width='2'/%3E%3C/svg%3E");
   --sign-ink: #14171C;
 
   --f-display: "Tektur", "Commissioner", system-ui, sans-serif;
@@ -57,17 +58,18 @@
     --ink: #EEF0F3;
     --muted: #9AA3B2;
     --line: #313846;
-    --red: #FF4D5E;
+    --red: #FF3D63;
     --red-soft: #3A1C22;
-    --yellow: #FFC930;
+    --yellow: #FFDA1F;
     --yellow-soft: #3A3014;
     --yellow-ink: #FFE9A8;
-    --blue: #4C7FF0;
+    --blue: #4D8DFF;
     --blue-soft: #1A2540;
-    --ok: #3DD68C;
+    --ok: #2BEA9B;
     --ok-soft: #13301F;
-    --star: #FFC930;
+    --star: #FFDA1F;
     --sign-white: #F2F4F7;
+    --tri-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48'%3E%3Cpath d='M28 8 L48 42 H8 Z' fill='none' stroke='%23FFDA1F' stroke-opacity='.06' stroke-width='2'/%3E%3C/svg%3E");
   }
 }
 :root[data-theme="dark"] {
@@ -77,17 +79,18 @@
   --ink: #EEF0F3;
   --muted: #9AA3B2;
   --line: #313846;
-  --red: #FF4D5E;
+  --red: #FF3D63;
   --red-soft: #3A1C22;
-  --yellow: #FFC930;
+  --yellow: #FFDA1F;
   --yellow-soft: #3A3014;
   --yellow-ink: #FFE9A8;
-  --blue: #4C7FF0;
+  --blue: #4D8DFF;
   --blue-soft: #1A2540;
-  --ok: #3DD68C;
+  --ok: #2BEA9B;
   --ok-soft: #13301F;
-  --star: #FFC930;
+  --star: #FFDA1F;
   --sign-white: #F2F4F7;
+  --tri-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48'%3E%3Cpath d='M28 8 L48 42 H8 Z' fill='none' stroke='%23FFDA1F' stroke-opacity='.06' stroke-width='2'/%3E%3C/svg%3E");
 }
 
 /* Атрибут hidden перебивається будь-яким display: grid/flex —
@@ -1008,6 +1011,141 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
   font-weight: 600; font-size: var(--t-sm);
   animation: toast-in .25s ease-out;
 }
+
+/* ---------------- ТРИКУТНИКИ ----------------
+   Мотив дорожнього знака скрізь, але кожен трикутник щось позначає:
+   заголовок, край розділу, кут таблички, напрямок кнопки. */
+
+/* фон — легкий візерунок із контурних трикутників */
+body { background-image: var(--tri-bg); background-size: 56px 48px; }
+
+/* кожен заголовок починається з червоного знака */
+.h::before {
+  content: "";
+  flex: none;
+  width: .8em; height: .7em;
+  background: var(--red);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.h-sub::before { background: var(--yellow); }
+
+/* кут таблички: жовтий трикутник у правому верхньому куті */
+.card, .metric, .debt, .svc { position: relative; }
+.card::after, .metric::after {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 22px; height: 22px;
+  background: var(--yellow);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  border-top-right-radius: inherit;
+  pointer-events: none;
+}
+.metric-bad::after, .card-admin::after { background: var(--red); }
+.debt.is-overdue::after {
+  content: "";
+  position: absolute; top: -2px; right: -2px;
+  width: 26px; height: 26px;
+  background: var(--red);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  border-top-right-radius: inherit;
+}
+
+/* межа розділу — зубчаста стрічка з трикутників */
+.section { position: relative; padding-top: 26px; }
+.section::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 10px;
+  background: conic-gradient(from 135deg at 50% 0, var(--yellow) 90deg, transparent 0) 0 0 / 16px 10px repeat-x;
+}
+
+/* головна кнопка — з вістрям, як дорожній покажчик */
+.btn-accent:not(.btn-block) {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+  padding-right: 28px;
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
+/* маркери хронології — трикутники замість рамок */
+.timeline b { position: relative; padding-left: 16px; }
+.timeline b::before {
+  content: "";
+  position: absolute; left: 5px; top: 50%;
+  width: 7px; height: 8px; margin-top: -4px;
+  background: var(--red);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* підвал — ряд червоних трикутників */
+.foot::before {
+  content: "";
+  flex: 1 0 100%;
+  height: 12px;
+  background: conic-gradient(from 150deg at 50% 0, var(--red) 60deg, transparent 0) 0 0 / 18px 12px repeat-x;
+}
+
+/* ---------------- ПОСЛУГИ: ВІДПРАЦЮВАТИ БОРГ ---------------- */
+
+.card-services .section-head .h { margin-bottom: 0; }
+.services { display: grid; gap: 10px; margin-top: 12px; }
+.svc {
+  display: grid; gap: 4px;
+  padding: 12px 14px 12px 20px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  overflow: hidden;
+}
+/* ліва грань — жовтий трикутний «цінник» */
+.svc::before {
+  content: "";
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 10px;
+  background: var(--yellow);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.svc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.svc-top b { font-family: var(--f-display); font-weight: 700; }
+.svc-price {
+  font-family: var(--f-display); font-weight: 800; white-space: nowrap;
+  color: var(--ok);
+}
+.svc p { color: var(--muted); font-size: var(--t-sm); }
+.svc .link-btn { justify-self: start; }
+
+/* ---------------- ВЛАСНІ АЧІВКИ ---------------- */
+
+.ach-emoji {
+  display: grid; place-items: center;
+  width: 46px; height: 46px; margin-bottom: 8px;
+  font-size: 28px; line-height: 1;
+  background: var(--yellow);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  padding-top: 12px;
+  filter: grayscale(1); opacity: .45;
+}
+.ach-custom.on .ach-emoji { filter: none; opacity: 1; }
+.ach-custom .link-btn { justify-self: start; margin-top: 4px; }
+
+/* ---------------- ВІДПОВІДІ ПІД ВІДГУКАМИ ---------------- */
+
+.rv-replies {
+  display: grid; gap: 8px; justify-items: start;
+  margin: 10px 0 0 46px;
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+}
+.reply { position: relative; width: 100%; }
+.reply::before {
+  content: "";
+  position: absolute; left: -19px; top: 6px;
+  width: 9px; height: 10px;
+  background: var(--blue);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.reply-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: var(--t-sm); }
+.reply-head time { color: var(--muted); font-size: 12.5px; }
+.reply-head .link-btn { padding: 0; font-size: 12px; }
+.reply p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
 
 /* ---------------- ТЕЛЕФОН ---------------- */
 

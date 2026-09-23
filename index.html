@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,400..800&family=Commissioner:wght@400;500;600;700&display=swap">
 
-  <!-- ?v=13 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=14 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -90,13 +90,20 @@
       </section>
     </div>
 
-    <!-- КОМУ СКІЛЬКИ + НАЙБЛИЖЧА ВИПЛАТА -->
+    <!-- КОМУ СКІЛЬКИ + ПОСЛУГИ ДМИТРА -->
     <div class="row">
       <section class="card">
         <h2 class="h">Кому скільки</h2>
         <div class="bars" id="creditors"></div>
       </section>
-      <section class="card card-payday" id="payday"></section>
+      <section class="card card-services">
+        <div class="section-head">
+          <h2 class="h">Відпрацювати борг</h2>
+          <button class="btn btn-sm btn-soft" type="button" id="addService" hidden>+ Послуга</button>
+        </div>
+        <p class="hint">Замість грошей можна домовитися про справу. Ціна йде в рахунок боргу.</p>
+        <div class="services" id="services"></div>
+      </section>
     </div>
 
     <!-- ЧЕРГА + КАЛЕНДАР -->
@@ -107,12 +114,15 @@
         <ol class="queue" id="queue"></ol>
       </section>
       <section class="card">
-        <h2 class="h">Календар</h2>
+        <div class="section-head">
+          <h2 class="h">Календар</h2>
+          <button class="btn btn-sm btn-soft" type="button" id="exportCsv">⬇ У Excel</button>
+        </div>
         <div class="cal-head" aria-hidden="true">
           <span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>нд</span>
         </div>
         <div class="cal" id="calendar"></div>
-        <p class="hint cal-legend"><i class="dot dot-due"></i> треба віддати <i class="dot dot-pay"></i> зарплата</p>
+        <p class="hint cal-legend"><i class="dot dot-due"></i> треба віддати</p>
       </section>
     </div>
 
@@ -168,7 +178,10 @@
 
     <!-- АЧІВКИ -->
     <section class="section">
-      <h2 class="h">Ачівки</h2>
+      <div class="section-head">
+        <h2 class="h">Ачівки</h2>
+        <button class="btn btn-sm btn-soft" type="button" id="addBadge" hidden>+ Ачівка</button>
+      </div>
       <div class="achievements" id="achievements"></div>
     </section>
 
@@ -271,6 +284,53 @@
   </form>
 </dialog>
 
+<!-- Відповідь під відгуком -->
+<dialog class="dialog" id="replyDialog">
+  <form id="replyForm" novalidate>
+    <h3>Відповісти</h3>
+    <p class="hint" id="rpInfo"></p>
+    <label class="field"><span>Текст</span><textarea id="rpText" rows="3" maxlength="300" required></textarea></label>
+    <p class="form-error" id="rpError" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" type="button" data-close>Скасувати</button>
+      <button class="btn btn-accent" type="submit">Надіслати</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Власна ачівка (адмін) -->
+<dialog class="dialog" id="badgeDialog">
+  <form id="badgeForm" novalidate>
+    <h3 id="bHead">Нова ачівка</h3>
+    <label class="field"><span>Назва</span><input id="bTitle" maxlength="40" required></label>
+    <label class="field"><span>Опис</span><input id="bDesc" maxlength="120"></label>
+    <label class="field"><span>Значок — емодзі або символ</span><input id="bIcon" maxlength="8" placeholder="🏆"></label>
+    <label class="switch"><input type="checkbox" id="bEarned"> <span>Здобуто</span></label>
+    <p class="form-error" id="bError" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="link-btn danger" type="button" id="bDelete" hidden>Видалити</button>
+      <button class="btn btn-ghost" type="button" data-close>Скасувати</button>
+      <button class="btn btn-accent" type="submit">Зберегти</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Послуга «відпрацювати борг» (адмін) -->
+<dialog class="dialog" id="serviceDialog">
+  <form id="serviceForm" novalidate>
+    <h3 id="svHead">Нова послуга</h3>
+    <label class="field"><span>Що зробить</span><input id="svTitle" maxlength="60" required></label>
+    <label class="field"><span>Ціна, ₴</span><input id="svPrice" type="number" inputmode="numeric" min="0" step="1" required></label>
+    <label class="field"><span>Деталі</span><textarea id="svDesc" rows="2" maxlength="200"></textarea></label>
+    <p class="form-error" id="svError" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="link-btn danger" type="button" id="svDelete" hidden>Видалити</button>
+      <button class="btn btn-ghost" type="button" data-close>Скасувати</button>
+      <button class="btn btn-accent" type="submit">Зберегти</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <!-- з'являється, коли на сервері вже нова версія сайту -->
@@ -279,8 +339,8 @@
   <button class="btn btn-sm btn-accent" id="updateBtn" type="button">Оновити</button>
 </div>
 
-<script src="config.js?v=13"></script>
-<script src="storage.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="storage.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

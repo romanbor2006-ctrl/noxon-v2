@@ -50,8 +50,8 @@
   const isOwnerLogin = (login) => !!login && login === C.ownerLogin;
 
   /* ---------------- СТАН -------------------------------------- */
-  const COLS = ["users", "debts", "ratings", "site"];
-  const state = { users: [], debts: [], ratings: [], site: [] };
+  const COLS = ["users", "debts", "ratings", "site", "replies", "badges", "services"];
+  const state = { users: [], debts: [], ratings: [], site: [], replies: [], badges: [], services: [] };
   let me = null;
   let kickReason = null;
 
@@ -279,7 +279,7 @@
     const rid = () => Math.random().toString(36).slice(2, 12);
 
     function seed() {
-      const db = { accounts: {}, users: {}, debts: {}, ratings: {}, site: { subject: DEMO_SUBJECT } };
+      const db = { accounts: {}, users: {}, debts: {}, ratings: {}, site: { subject: DEMO_SUBJECT }, replies: {}, badges: {}, services: {} };
       const uidOf = {};
       C.demoUsers.forEach((u) => {
         const uid = "u_" + u.login;
@@ -306,6 +306,10 @@
       db.ratings[uidOf.rostyk] = { value: 3, text: "Віддає, але шаурму вже двічі прострочив. Нагадую без нагадування 🙂", user: "Ростик", ts: ts(-3) };
       db.ratings[uidOf.oleh] = { value: 4, text: "Телефон поки не повернув, зате чесно пише «віддав» тільки коли справді віддав.", user: "Олег", ts: ts(-2) };
       db.ratings[uidOf.admin] = { value: 5, text: "", user: "Адмін", ts: ts(-9) };
+      db.replies[uidOf.oleh + "_1_0"] = { reviewId: uidOf.rostyk, uid: uidOf.oleh, user: "Олег", text: "Шаурма — святе, згоден.", ts: ts(-2) };
+      db.badges[rid()] = { title: "Повернув без нагадувань", desc: "Хоч раз віддав сам, ніхто не просив", icon: "🦄", earned: false, ts: ts(-5) };
+      db.services[rid()] = { title: "Помити машину", price: 200, desc: "Зовні, з пилососом у салоні", ts: ts(-4) };
+      db.services[rid()] = { title: "Допомогти з переїздом", price: 500, desc: "Носити коробки до 3 годин", ts: ts(-4) };
       return db;
     }
 
@@ -315,6 +319,9 @@
         if (raw) {
           const db = JSON.parse(raw);
           db.site = db.site || { subject: DEMO_SUBJECT };
+          db.replies = db.replies || {};
+          db.badges = db.badges || {};
+          db.services = db.services || {};
           return db;
         }
       } catch (e) {}
@@ -406,6 +413,24 @@
       }
       if (col === "site") {
         return admin && id === "subject" && op !== "delete" && validSubject(after);
+      }
+      if (col === "replies") {
+        if (op === "delete") return admin || before.uid === uid;
+        if (op === "update") return false;
+        const m = Math.floor(Date.now() / 60000), ok = [];
+        [m, m - 1].forEach((mm) => { for (let s = 0; s < 3; s++) ok.push(uid + "_" + mm + "_" + s); });
+        return ok.includes(id) && after.uid === uid && after.user === p.name && !!db.ratings[after.reviewId]
+          && typeof after.text === "string" && after.text.length > 0 && after.text.length <= L.replyMax && fresh(after.ts);
+      }
+      if (col === "badges") {
+        return admin && (op === "delete" || (typeof after.title === "string" && after.title.length > 0 && after.title.length <= 40
+          && typeof after.desc === "string" && after.desc.length <= 120
+          && typeof after.icon === "string" && after.icon.length <= 8 && typeof after.earned === "boolean"));
+      }
+      if (col === "services") {
+        return admin && (op === "delete" || (typeof after.title === "string" && after.title.length > 0 && after.title.length <= 60
+          && Number.isInteger(after.price) && after.price >= 0 && after.price <= L.amountMax
+          && typeof after.desc === "string" && after.desc.length <= 200));
       }
       if (col === "ratings") {
         if (op === "delete") return admin || id === uid;
@@ -729,6 +754,66 @@
       return B.set("ratings", me.uid, { value, text, user: me.name, ts: Date.now() });
     },
     // свій відгук — автор; чужий — лише адмін
-    removeReview(uid) { return guestBlocked() || B.remove("ratings", uid); }
+    removeReview(uid) { return guestBlocked() || B.remove("ratings", uid); },
+
+    /* ---------------- ВІДПОВІДІ ПІД ВІДГУКАМИ ----------------
+       Антиспам у ключі, як колись у коментарях: uid_хвилина_слот,
+       слоти 0–2 — не більше трьох відповідей на хвилину. */
+    async addReply(reviewId, text) {
+      const stop = guestBlocked(); if (stop) return stop;
+      text = String(text || "").trim();
+      if (!text) throw invalid("Напиши відповідь.");
+      if (text.length > L.replyMax) throw invalid("Відповідь — до " + L.replyMax + " символів.");
+      const minute = Math.floor(Date.now() / 60000);
+      const taken = new Set(state.replies.map((r) => r.id));
+      for (let slot = 0; slot < 3; slot++) {
+        const id = me.uid + "_" + minute + "_" + slot;
+        if (taken.has(id)) continue;
+        try {
+          await B.set("replies", id, { reviewId, uid: me.uid, user: me.name, text, ts: Date.now() });
+          return;
+        } catch (e) {
+          if (e.code !== "permission-denied") throw e;
+        }
+      }
+      throw invalid("Не більше трьох відповідей на хвилину. Зачекай трохи.");
+    },
+    removeReply(id) { return guestBlocked() || B.remove("replies", id); },
+
+    /* ---------------- ВЛАСНІ АЧІВКИ (адмін) ---------------- */
+    saveBadge(id, { title, desc, icon, earned }) {
+      const stop = guestBlocked(); if (stop) return stop;
+      const data = {
+        title: String(title || "").trim(),
+        desc: String(desc || "").trim(),
+        icon: String(icon || "").trim() || "🏆",
+        earned: !!earned,
+        ts: Date.now()
+      };
+      if (!data.title) return Promise.reject(invalid("Дай ачівці назву."));
+      if (data.title.length > 40) return Promise.reject(invalid("Назва — до 40 символів."));
+      if (data.desc.length > 120) return Promise.reject(invalid("Опис — до 120 символів."));
+      if (data.icon.length > 8) return Promise.reject(invalid("Значок — один-два символи або емодзі."));
+      return id ? B.update("badges", id, data) : B.add("badges", data);
+    },
+    removeBadge(id) { return guestBlocked() || B.remove("badges", id); },
+
+    /* ---------------- ПОСЛУГИ: ВІДПРАЦЮВАТИ БОРГ (адмін) ---------------- */
+    saveService(id, { title, price, desc }) {
+      const stop = guestBlocked(); if (stop) return stop;
+      const data = {
+        title: String(title || "").trim(),
+        price: Number(price),
+        desc: String(desc || "").trim(),
+        ts: Date.now()
+      };
+      if (!data.title) return Promise.reject(invalid("Назви послугу."));
+      if (data.title.length > 60) return Promise.reject(invalid("Назва — до 60 символів."));
+      if (!Number.isInteger(data.price) || data.price < 0 || data.price > L.amountMax)
+        return Promise.reject(invalid("Ціна — ціле число від 0 до " + L.amountMax + "."));
+      if (data.desc.length > 200) return Promise.reject(invalid("Опис — до 200 символів."));
+      return id ? B.update("services", id, data) : B.add("services", data);
+    },
+    removeService(id) { return guestBlocked() || B.remove("services", id); }
   };
 })();

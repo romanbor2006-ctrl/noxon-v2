@@ -169,7 +169,7 @@
         $("loginPass").value = "";
         loginError(reason || "");
         // вийшов — прибираємо з розмітки все, що прийшло з бази
-        ["dossier", "metrics", "hot", "about", "traits", "timeline", "creditors", "payday", "queue",
+        ["dossier", "metrics", "hot", "about", "traits", "timeline", "creditors", "services", "queue",
          "calendar", "ledger", "pending", "people", "achievements", "rvSummary", "rvMine", "rvToolbar", "rvList", "meChip", "fNote", "claimInfo"]
           .forEach((id) => { $(id).innerHTML = ""; });
         subjectKey = null;
@@ -466,6 +466,8 @@
       : `<b>${esc(me().name)}</b><span>${ROLE[me().role] || esc(me().role)}</span>`;
     $("pendingBlock").hidden = !isAdmin();
     $("peopleBlock").hidden = !isAdmin();
+    $("addService").hidden = !isAdmin();
+    $("addBadge").hidden = !isAdmin();
     $("formBlock").hidden = isGuest() || isSubject();
     document.querySelector('#ledgerTabs [data-tab="other"]').hidden = isGuest();
     if (isGuest() && tab === "other") tab = "open";
@@ -473,7 +475,7 @@
     renderSubject();
     renderMetrics();
     renderCreditors();
-    renderPayday();
+    renderServices();
     renderQueue();
     renderCalendar();
     renderLedger();
@@ -565,24 +567,83 @@
       </div>`).join("");
   }
 
-  /* --- найближча виплата ----------------------------------------- */
-  function renderPayday() {
-    const p = K.payday();
-    const when = p.days === 0 ? "сьогодні" : p.days === 1 ? "завтра" : "через " + days(p.days);
-    $("payday").innerHTML = `
-      <h2 class="h">Найближча зарплата</h2>
-      <div class="payday-date">
-        <strong>${dShort(p.date)}</strong>
-        <span>${when}</span>
-      </div>
-      <div class="payday-need ${p.need ? "is-warn" : ""}">
-        <span class="m-label">Треба зібрати до неї</span>
-        <strong>${money(p.need)}</strong>
-        <span class="m-sub">${p.need
-          ? p.count + " " + plural(p.count, "борг", "борги", "боргів") + ": прострочене + усе з датою до зарплати"
-          : "до цієї дати нічого не горить"}</span>
-      </div>`;
+  /* --- діалоги: закрити кнопкою «Скасувати» ---------------------- */
+  document.querySelectorAll("dialog [data-close]").forEach((b) =>
+    b.addEventListener("click", () => b.closest("dialog").close()));
+
+  function formError(id, err) {
+    $(id).textContent = err ? humanError(err) : "";
+    $(id).hidden = !err;
   }
+
+  /* --- послуги: відпрацювати борг ---------------------------------
+     Прайс справ, якими герой сайту може віддати борг. Редагує адмін. */
+  function renderServices() {
+    const list = [...S.state.services].sort((a, b) => a.price - b.price || a.ts - b.ts);
+    $("services").innerHTML = list.length ? list.map((s) => `
+      <div class="svc">
+        <div class="svc-top"><b>${esc(s.title)}</b><strong class="svc-price">${money(s.price)}</strong></div>
+        ${s.desc ? `<p>${esc(s.desc)}</p>` : ""}
+        ${isAdmin() ? `<button class="link-btn" type="button" data-svc="${esc(s.id)}">Змінити</button>` : ""}
+      </div>`).join("")
+      : `<p class="empty">${isAdmin() ? "Послуг ще немає — додай першу." : "Послуг поки немає."}</p>`;
+  }
+
+  let serviceId = null;
+  function openService(id) {
+    const s = id ? S.state.services.find((x) => x.id === id) : null;
+    serviceId = s ? s.id : null;
+    $("svHead").textContent = s ? "Змінити послугу" : "Нова послуга";
+    $("svTitle").value = s ? s.title : "";
+    $("svPrice").value = s ? s.price : "";
+    $("svDesc").value = s ? s.desc || "" : "";
+    $("svDelete").hidden = !s;
+    formError("svError", null);
+    $("serviceDialog").showModal();
+  }
+  $("addService").addEventListener("click", () => openService(null));
+  $("services").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svc]");
+    if (b) openService(b.dataset.svc);
+  });
+  $("serviceForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await S.saveService(serviceId, { title: $("svTitle").value, price: $("svPrice").value, desc: $("svDesc").value });
+      $("serviceDialog").close();
+      toast("Послугу збережено");
+    } catch (err) { formError("svError", err); }
+  });
+  $("svDelete").addEventListener("click", () => {
+    if (serviceId && confirm("Видалити послугу?")) {
+      act(S.removeService(serviceId), "Послугу видалено");
+      $("serviceDialog").close();
+    }
+  });
+
+  /* --- експорт боргів у CSV для Excel -----------------------------
+     «;» — роздільник, який Excel з українською локаллю розбирає сам;
+     BOM на початку — щоб кирилиця не перетворилась на кракозябри. */
+  function csvCell(v) {
+    let s = String(v ?? "");
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // текст із бази не має стати формулою Excel
+    return /[";\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  $("exportCsv").addEventListener("click", () => {
+    const rows = [["Дата повернення", "Кредитор", "За що", "Сума, ₴", "Повернуто, ₴", "Лишилось, ₴", "Статус"]];
+    K.open().sort((a, b) => K.day(a.due) - K.day(b.due)).forEach((d) => {
+      rows.push([dFull(d.due), creditorName(d), d.reason, d.amount, K.paid(d), K.left(d), dueText(K.daysLeft(d))]);
+    });
+    const csv = "﻿" + rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "noxon-borgy-" + K.iso(K.today()) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast(rows.length > 1 ? "Файл для Excel завантажено" : "Відкритих боргів немає — файл порожній");
+  });
 
   /* --- черга ------------------------------------------------------ */
   function renderQueue() {
@@ -614,8 +675,8 @@
       lastMonth = m;
       const title = c.items.length
         ? c.items.map((d) => creditorName(d) + " — " + money(K.left(d))).join(", ")
-        : (c.payday ? "зарплата" : "");
-      const cls = ["cal-cell", c.past && "past", c.today && "today", c.sum && "due", c.payday && "pay"].filter(Boolean).join(" ");
+        : "";
+      const cls = ["cal-cell", c.past && "past", c.today && "today", c.sum && "due"].filter(Boolean).join(" ");
       return `
         <div class="${cls}" ${title ? `title="${esc(title)}"` : ""}>
           <span class="cal-d">${label}</span>
@@ -911,14 +972,57 @@
     repeat: () => SIGN.diamond("ach-sign")
   };
   function renderAchievements() {
-    $("achievements").innerHTML = K.achievements().map((a) => `
+    const auto = K.achievements().map((a) => `
       <div class="ach ${a.earned ? "on" : ""}">
         ${(ACH_SIGN[a.id] || ACH_SIGN.early)()}
         <b>${esc(a.title)}</b>
         <small>${a.earned && a.amount ? "найбільший борг — " + money(a.amount) : esc(a.hint)}</small>
         <span class="ach-state">${a.earned ? "здобуто" : "ще ні"}</span>
-      </div>`).join("");
+      </div>`);
+    // Власні ачівки: видає й забирає адмін
+    const custom = [...S.state.badges].sort((a, b) => (a.title || "").localeCompare(b.title || "", "uk")).map((b) => `
+      <div class="ach ach-custom ${b.earned ? "on" : ""}">
+        <span class="ach-emoji" aria-hidden="true">${esc(b.icon || "🏆")}</span>
+        <b>${esc(b.title)}</b>
+        ${b.desc ? `<small>${esc(b.desc)}</small>` : ""}
+        <span class="ach-state">${b.earned ? "здобуто" : "ще ні"}, від адміна</span>
+        ${isAdmin() ? `<button class="link-btn" type="button" data-badge="${esc(b.id)}">Змінити</button>` : ""}
+      </div>`);
+    $("achievements").innerHTML = auto.concat(custom).join("");
   }
+
+  let badgeId = null;
+  function openBadge(id) {
+    const b = id ? S.state.badges.find((x) => x.id === id) : null;
+    badgeId = b ? b.id : null;
+    $("bHead").textContent = b ? "Змінити ачівку" : "Нова ачівка";
+    $("bTitle").value = b ? b.title : "";
+    $("bDesc").value = b ? b.desc || "" : "";
+    $("bIcon").value = b ? b.icon || "" : "";
+    $("bEarned").checked = b ? !!b.earned : false;
+    $("bDelete").hidden = !b;
+    formError("bError", null);
+    $("badgeDialog").showModal();
+  }
+  $("addBadge").addEventListener("click", () => openBadge(null));
+  $("achievements").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-badge]");
+    if (b) openBadge(b.dataset.badge);
+  });
+  $("badgeForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await S.saveBadge(badgeId, { title: $("bTitle").value, desc: $("bDesc").value, icon: $("bIcon").value, earned: $("bEarned").checked });
+      $("badgeDialog").close();
+      toast("Ачівку збережено");
+    } catch (err) { formError("bError", err); }
+  });
+  $("bDelete").addEventListener("click", () => {
+    if (badgeId && confirm("Видалити ачівку?")) {
+      act(S.removeBadge(badgeId), "Ачівку видалено");
+      $("badgeDialog").close();
+    }
+  });
 
   /* --- відгуки ------------------------------------------------------
      Як у Google Maps: зірки й текст — одне ціле. Угорі середній бал і
@@ -962,8 +1066,52 @@
           : isAdmin() ? `<button class="link-btn danger" type="button" data-rv="remove" data-id="${esc(r.id)}">видалити</button>` : ""}
         </header>
         ${r.text ? `<p class="rv-text">${esc(r.text)}</p>` : ""}
+        ${repliesBlock(r)}
       </article>`;
   }
+
+  // Відповіді під відгуком — коротка гілка, від старих до нових
+  function repliesBlock(r) {
+    const list = S.state.replies.filter((x) => x.reviewId === r.id).sort((a, b) => a.ts - b.ts);
+    if (!list.length && isGuest()) return "";
+    return `
+      <div class="rv-replies">
+        ${list.map((x) => `
+          <div class="reply">
+            <div class="reply-head">
+              <b>${esc(mask("rv:" + x.uid, x.user, "Учасник"))}</b>
+              <time title="${esc(dTime(x.ts))}">${ago(x.ts)}</time>
+              ${x.uid === me().uid || isAdmin() ? `<button class="link-btn danger" type="button" data-reply-del="${esc(x.id)}">видалити</button>` : ""}
+            </div>
+            <p>${esc(x.text)}</p>
+          </div>`).join("")}
+        ${isGuest() ? "" : `<button class="link-btn" type="button" data-reply="${esc(r.id)}">Відповісти</button>`}
+      </div>`;
+  }
+
+  let replyTo = null;
+  $("reviewsBlock").addEventListener("click", (e) => {
+    const open = e.target.closest("[data-reply]");
+    if (open) {
+      replyTo = open.dataset.reply;
+      const r = S.state.ratings.find((x) => x.id === replyTo);
+      $("rpInfo").textContent = r ? "Відповідь на відгук: " + mask("rv:" + r.id, r.user, "Учасник") : "";
+      $("rpText").value = "";
+      formError("rpError", null);
+      $("replyDialog").showModal();
+      return;
+    }
+    const del = e.target.closest("[data-reply-del]");
+    if (del && confirm("Видалити відповідь?")) act(S.removeReply(del.dataset.replyDel), "Відповідь видалено");
+  });
+  $("replyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await S.addReply(replyTo, $("rpText").value);
+      $("replyDialog").close();
+      toast("Відповідь надіслано");
+    } catch (err) { formError("rpError", err); }
+  });
 
   function renderReviews() {
     const r = K.rating();
