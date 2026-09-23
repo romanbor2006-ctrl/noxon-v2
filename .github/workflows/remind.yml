@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 20
       - name: Тести
-        run: node --test bot/reminders.test.js bot/firestore.test.js
+        run: node --test bot/reminders.test.js bot/firestore.test.js bot/moderation.test.js
         env:
           TZ: Europe/Kyiv
       - name: Нагадування

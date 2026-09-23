@@ -390,7 +390,7 @@
           && after.payments.length === 0 && after.claim === null && fresh(after.ts)
           && after.author === p.name && !!db.users[after.creditorUid]
           && after.creditorUid === uid && after.creditor === p.name && role !== "subject";
-        if (admin && only(["status", "amount", "reason", "due", "creditor", "creditorUid"])
+        if (admin && only(["status", "amount", "reason", "due", "creditor", "creditorUid", "notified"])
           && ["pending", "approved", "rejected"].includes(after.status) && validDebt(after)) return true;
         if (role === "subject" && before.status === "approved" && only(["claim"])
           && (after.claim === null || (Number.isInteger(after.claim.amount) && after.claim.amount >= 1
@@ -661,6 +661,13 @@
         payments: [],
         claim: null,
         ts: Date.now()
+      }).then((r) => {
+        // Нова заявка — сказати боту, щоб повідомив адміна в Telegram.
+        // Бот сам читає базу, тож тут нічого не передаємо; помилку ігноруємо.
+        if (B.kind === "firebase" && C.notifyUrl) {
+          fetch(C.notifyUrl, { method: "POST", keepalive: true }).catch(() => {});
+        }
+        return r;
       });
     },
     approve(id) { return guestBlocked() || B.update("debts", id, { status: "approved" }); },

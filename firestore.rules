@@ -97,11 +97,13 @@ service cloud.firestore {
     function oldPayments() { return stored().get('payments', []); }
     function newPayments() { return incoming().get('payments', []); }
 
-    // Адмін модерує: статус, сума, дата, опис, кредитор.
+    // Адмін модерує: статус, сума, дата, опис, кредитор; notified — позначка
+    // бота «про цю заявку вже повідомлено в Telegram».
     // Платежі й заявки НЕ чіпає — інакше закрив би борг сам.
     function adminStep() {
       return isAdmin()
-        && changed().hasOnly(['status', 'amount', 'reason', 'due', 'creditor', 'creditorUid'])
+        && changed().hasOnly(['status', 'amount', 'reason', 'due', 'creditor', 'creditorUid', 'notified'])
+        && incoming().get('notified', false) is bool
         && incoming().status in ['pending', 'approved', 'rejected']
         && validDebt(incoming());
     }
