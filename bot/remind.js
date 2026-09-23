@@ -7,10 +7,9 @@ process.env.TZ = process.env.TZ || "Europe/Kyiv";
 
 const { loadSite } = require("./load-site");
 const { signInAnonymously, listCollection, getDocument } = require("./firestore");
-const { pickDue, nextDue, formatMessage } = require("./reminders");
+const { pickDue, nextDue, formatMessage, buildKeyboard } = require("./reminders");
 const { sendMessage } = require("./telegram");
 
-const SITE_URL = "https://noxon-app.vercel.app";
 const SEND_HOUR = 9;
 
 function kyivHour(now = new Date()) {
@@ -42,7 +41,8 @@ async function main() {
 
   const heroName = subject && subject.name ? subject.name.split(" ")[0] : "Герой сайту";
   const groups = pickDue(debts, calc);
-  const text = formatMessage(groups, { calc, heroName, siteUrl: SITE_URL, test: mode === "test", next: nextDue(debts, calc) });
+  const siteUrl = CONFIG.siteUrl;
+  const text = formatMessage(groups, { calc, heroName, siteUrl, test: mode === "test", next: nextDue(debts, calc) });
 
   // Лише числа: журнали GitHub Actions публічного репозиторію видно всім.
   console.log(`Боргів у базі: ${debts.length}. Горить: ${groups.reduce((s, g) => s + g.debts.length, 0)}.`);
@@ -53,7 +53,7 @@ async function main() {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token) throw new Error("Немає секрету TELEGRAM_BOT_TOKEN.");
   if (!chatId) throw new Error("Немає секрету TELEGRAM_CHAT_ID.");
-  await sendMessage(token, chatId, text);
+  await sendMessage(token, chatId, text, buildKeyboard({ payUrl: CONFIG.payUrl, siteUrl }));
   console.log("Надіслано в Telegram.");
 }
 
