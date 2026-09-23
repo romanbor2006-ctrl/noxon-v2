@@ -1147,6 +1147,83 @@ body { background-image: var(--tri-bg); background-size: 56px 48px; }
 .reply-head .link-btn { padding: 0; font-size: 12px; }
 .reply p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
 
+/* ---------------- МЕНЮ РОЗДІЛІВ ---------------- */
+
+.nav { border-top: 1px solid var(--line); }
+.nav-in {
+  max-width: 1120px; margin: 0 auto;
+  padding: 0 16px;
+  display: flex; gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-in::-webkit-scrollbar { display: none; }
+.nav a {
+  position: relative;
+  flex: none;
+  padding: 9px 12px 13px;
+  font-weight: 600; font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.nav a:hover { color: var(--ink); }
+.nav a.on { color: var(--ink); }
+/* поточний розділ — червоний трикутник-покажчик знизу */
+.nav a::after {
+  content: "";
+  position: absolute; left: 50%; bottom: 0;
+  width: 14px; height: 9px; margin-left: -7px;
+  background: var(--red);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform .22s cubic-bezier(.3, 1.4, .5, 1);
+}
+.nav a.on::after { transform: scaleY(1); }
+.nav a:focus-visible { outline-offset: -3px; }
+/* щоб липка шапка з меню не накривала заголовок розділу */
+section, .hero { scroll-margin-top: 124px; }
+
+/* ---------------- АНІМАЦІЇ ---------------- */
+
+/* поява розділу під час прокрутки */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .55s ease, transform .55s cubic-bezier(.2, .7, .2, 1); }
+.reveal.in { opacity: 1; transform: none; }
+/* трикутник у заголовку розвертається, як знак на повороті */
+.reveal .h::before { transform: rotate(-120deg) scale(.3); transition: transform .6s cubic-bezier(.3, 1.6, .5, 1) .15s; }
+.reveal.in .h::before { transform: none; }
+/* смуги «Кому скільки» й розподілу оцінок ростуть */
+.reveal .bar i { transform: scaleX(0); transform-origin: left; transition: transform .9s cubic-bezier(.2, .7, .2, 1) .25s; }
+.reveal.in .bar i { transform: none; }
+
+/* таблички піднімаються під курсором */
+.metric, .debt, .svc, .ach { transition: transform .18s ease, box-shadow .18s ease; }
+@media (hover: hover) {
+  .metric:hover, .debt:hover, .svc:hover, .ach:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px -16px rgba(20, 23, 28, .5);
+  }
+  .btn:hover { transform: translateY(-1px); }
+}
+
+/* «Горить» повільно пульсує — єдиний рух без дії людини: привернути увагу */
+.hot-bad { animation: hot-pulse 2.6s ease-in-out infinite; }
+@keyframes hot-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--red) 22%, transparent); } }
+
+/* ---------------- ПІДПИС ---------------- */
+
+.made {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.made::before { content: "▲ "; color: var(--red); }
+.made-login { text-align: center; font-size: 13px; color: var(--muted); margin-top: -6px; }
+
 /* ---------------- ТЕЛЕФОН ---------------- */
 
 @media (max-width: 480px) {
@@ -1163,4 +1240,5 @@ body { background-image: var(--tri-bg); background-size: 56px 48px; }
 /* рух вимкнено в системі — вимикаємо весь рух */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal, .reveal .h::before, .reveal .bar i { opacity: 1; transform: none; }
 }

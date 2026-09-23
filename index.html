@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,400..800&family=Commissioner:wght@400;500;600;700&display=swap">
 
-  <!-- ?v=14 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=15 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -45,6 +45,7 @@
     <button class="btn btn-ghost btn-block" id="guestBtn" type="button">Увійти як гість</button>
     <p class="login-note">Гість бачить актуальний борг, але нічого не змінює й не бачить, кому саме винен Дмитро. Акаунти видає адмін, реєстрації немає.</p>
     <p class="login-demo" id="loginDemo" hidden></p>
+    <p class="made made-login">made by shlotsyky</p>
   </form>
 </main>
 
@@ -63,6 +64,21 @@
         <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Вийти</button>
       </div>
     </div>
+    <!-- Меню розділів: поточний підсвічується трикутником-покажчиком -->
+    <nav class="nav" id="nav" aria-label="Розділи сайту">
+      <div class="nav-in">
+        <a href="#dossier">Досьє</a>
+        <a href="#hot">Горить</a>
+        <a href="#creditors">Кому скільки</a>
+        <a href="#services">Відпрацювати</a>
+        <a href="#queue">Черга</a>
+        <a href="#calendar">Календар</a>
+        <a href="#ledger">Реєстр</a>
+        <a href="#achievements">Ачівки</a>
+        <a href="#reviewsBlock">Відгуки</a>
+        <a href="#pendingBlock" data-admin hidden>Модерація</a>
+      </div>
+    </nav>
   </header>
 
   <main class="page">
@@ -224,6 +240,7 @@
     <footer class="foot">
       <span>noxon — внутрішній інструмент. Грошей не переказує, юридичної сили не має — лише фіксує домовленості.</span>
       <button class="link-btn" id="resetDemo" type="button" hidden>скинути демо-дані</button>
+      <span class="made">made by shlotsyky</span>
     </footer>
   </main>
 </div>
@@ -339,8 +356,8 @@
   <button class="btn btn-sm btn-accent" id="updateBtn" type="button">Оновити</button>
 </div>
 
-<script src="config.js?v=14"></script>
-<script src="storage.js?v=14"></script>
-<script src="app.js?v=14"></script>
+<script src="config.js?v=15"></script>
+<script src="storage.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

@@ -468,6 +468,7 @@
     $("peopleBlock").hidden = !isAdmin();
     $("addService").hidden = !isAdmin();
     $("addBadge").hidden = !isAdmin();
+    document.querySelector('#nav [data-admin]').hidden = !isAdmin();
     $("formBlock").hidden = isGuest() || isSubject();
     document.querySelector('#ledgerTabs [data-tab="other"]').hidden = isGuest();
     if (isGuest() && tab === "other") tab = "open";
@@ -1255,6 +1256,54 @@
       $("rvSubmit").disabled = !rvDraft;
     }
   });
+  /* --- меню розділів ----------------------------------------------
+     Посилання ведуть до розділу, в якому лежить елемент з id. Поточний
+     розділ підсвічується: спостерігач стежить, який розділ зараз
+     посередині екрана. */
+  const navLinks = [...document.querySelectorAll("#nav a")];
+  const sectionOf = (a) => {
+    const el = $(a.getAttribute("href").slice(1));
+    return el && (el.closest("section, .hero") || el);
+  };
+  function setActive(sec) {
+    navLinks.forEach((a) => {
+      const on = sectionOf(a) === sec;
+      a.classList.toggle("on", on);
+      if (on) {
+        a.setAttribute("aria-current", "true");
+        // на телефоні меню гортається вбік — тримаємо поточний пункт на виду
+        const strip = a.parentElement;
+        strip.scrollTo({ left: a.offsetLeft - 16, behavior: reduceMotion() ? "auto" : "smooth" });
+      } else a.removeAttribute("aria-current");
+    });
+  }
+  navLinks.forEach((a) => a.addEventListener("click", (e) => {
+    const sec = sectionOf(a);
+    if (!sec) return;
+    e.preventDefault();
+    sec.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
+    setActive(sec);
+  }));
+  if ("IntersectionObserver" in window) {
+    const spy = new IntersectionObserver((entries) => {
+      entries.forEach((en) => { if (en.isIntersecting) setActive(en.target); });
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    navLinks.forEach((a) => { const s = sectionOf(a); if (s) spy.observe(s); });
+  }
+
+  /* --- поява розділів під час прокрутки ---------------------------
+     Розділ проявляється, трикутник у заголовку розвертається, смуги
+     «Кому скільки» ростуть. Якщо в системі вимкнено рух — усе одразу. */
+  const revealEls = document.querySelectorAll(".page > .hero, .page > section, .page > .row > section");
+  if (reduceMotion() || !("IntersectionObserver" in window)) {
+    revealEls.forEach((el) => el.classList.add("in"));
+  } else {
+    const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+      if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+    }), { rootMargin: "0px 0px -8% 0px" });
+    revealEls.forEach((el) => { el.classList.add("reveal"); io.observe(el); });
+  }
+
   /* --- нова версія сайту --------------------------------------------
      Відкрита вкладка може жити днями й працювати зі старим кодом, який
      уже не збігається з правилами бази. Раз на 5 хвилин і щоразу, коли
