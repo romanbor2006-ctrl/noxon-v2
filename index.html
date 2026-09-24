@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,400..800&family=Commissioner:wght@400;500;600;700&display=swap">
 
-  <!-- ?v=15 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=16 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -45,6 +45,7 @@
     <button class="btn btn-ghost btn-block" id="guestBtn" type="button">Увійти як гість</button>
     <p class="login-note">Гість бачить актуальний борг, але нічого не змінює й не бачить, кому саме винен Дмитро. Акаунти видає адмін, реєстрації немає.</p>
     <p class="login-demo" id="loginDemo" hidden></p>
+    <a class="support-link" data-support href="#" target="_blank" rel="noopener">✉ Підтримка</a>
     <p class="made made-login">made by shlotsyky</p>
   </form>
 </main>
@@ -70,7 +71,7 @@
         <a href="#dossier">Досьє</a>
         <a href="#hot">Горить</a>
         <a href="#creditors">Кому скільки</a>
-        <a href="#services">Відпрацювати</a>
+        <a href="#services">Каталог</a>
         <a href="#queue">Черга</a>
         <a href="#calendar">Календар</a>
         <a href="#ledger">Реєстр</a>
@@ -106,21 +107,31 @@
       </section>
     </div>
 
-    <!-- КОМУ СКІЛЬКИ + ПОСЛУГИ ДМИТРА -->
+    <!-- КОМУ СКІЛЬКИ + ОПЛАТА І ПІДТРИМКА -->
     <div class="row">
       <section class="card">
         <h2 class="h">Кому скільки</h2>
         <div class="bars" id="creditors"></div>
       </section>
-      <section class="card card-services">
-        <div class="section-head">
-          <h2 class="h">Відпрацювати борг</h2>
-          <button class="btn btn-sm btn-soft" type="button" id="addService" hidden>+ Послуга</button>
+      <section class="card card-help">
+        <h2 class="h">Оплата і підтримка</h2>
+        <p class="hint">Гроші за послуги й борги йдуть у банку Monobank. Щось не працює чи є питання — пиши в підтримку.</p>
+        <div class="help-actions">
+          <a class="btn btn-accent" id="payJar" href="#" target="_blank" rel="noopener">Поповнити банку</a>
+          <a class="btn btn-ghost" data-support href="#" target="_blank" rel="noopener">✉ Написати в підтримку</a>
         </div>
-        <p class="hint">Замість грошей можна домовитися про справу. Ціна йде в рахунок боргу.</p>
-        <div class="services" id="services"></div>
       </section>
     </div>
+
+    <!-- КАТАЛОГ ПОСЛУГ ДМИТРА -->
+    <section class="section card-services">
+      <div class="section-head">
+        <h2 class="h">Каталог послуг Дмитра</h2>
+        <button class="btn btn-sm btn-soft" type="button" id="addService" hidden>+ Послуга</button>
+      </div>
+      <p class="hint">Обери послугу й оплати в банку — сума й назва підставляться самі.</p>
+      <div class="services" id="services"></div>
+    </section>
 
     <!-- ЧЕРГА + КАЛЕНДАР -->
     <div class="row">
@@ -240,6 +251,7 @@
     <footer class="foot">
       <span>noxon — внутрішній інструмент. Грошей не переказує, юридичної сили не має — лише фіксує домовленості.</span>
       <button class="link-btn" id="resetDemo" type="button" hidden>скинути демо-дані</button>
+      <a class="link-btn" data-support href="#" target="_blank" rel="noopener">✉ Підтримка</a>
       <span class="made">made by shlotsyky</span>
     </footer>
   </main>
@@ -332,13 +344,24 @@
   </form>
 </dialog>
 
-<!-- Послуга «відпрацювати борг» (адмін) -->
+<!-- Послуга з каталогу (адмін) -->
 <dialog class="dialog" id="serviceDialog">
   <form id="serviceForm" novalidate>
     <h3 id="svHead">Нова послуга</h3>
     <label class="field"><span>Що зробить</span><input id="svTitle" maxlength="60" required></label>
     <label class="field"><span>Ціна, ₴</span><input id="svPrice" type="number" inputmode="numeric" min="0" step="1" required></label>
     <label class="field"><span>Деталі</span><textarea id="svDesc" rows="2" maxlength="200"></textarea></label>
+    <div class="photo-edit">
+      <div class="photo-preview svc-preview" id="svPhotoPreview"></div>
+      <div class="photo-tools">
+        <label class="btn btn-sm btn-soft file-btn">
+          Обрати фото
+          <input id="svPhotoFile" type="file" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <button class="link-btn danger" id="svPhotoClear" type="button">прибрати фото</button>
+        <span class="hint" id="svPhotoInfo"></span>
+      </div>
+    </div>
     <p class="form-error" id="svError" role="alert" hidden></p>
     <div class="dialog-actions">
       <button class="link-btn danger" type="button" id="svDelete" hidden>Видалити</button>
@@ -356,8 +379,8 @@
   <button class="btn btn-sm btn-accent" id="updateBtn" type="button">Оновити</button>
 </div>
 
-<script src="config.js?v=15"></script>
-<script src="storage.js?v=15"></script>
-<script src="app.js?v=15"></script>
+<script src="config.js?v=16"></script>
+<script src="storage.js?v=16"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

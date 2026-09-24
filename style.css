@@ -1084,33 +1084,65 @@ body { background-image: var(--tri-bg); background-size: 56px 48px; }
   background: conic-gradient(from 150deg at 50% 0, var(--red) 60deg, transparent 0) 0 0 / 18px 12px repeat-x;
 }
 
-/* ---------------- ПОСЛУГИ: ВІДПРАЦЮВАТИ БОРГ ---------------- */
+/* ---------------- КАТАЛОГ ПОСЛУГ ДМИТРА ---------------- */
 
 .card-services .section-head .h { margin-bottom: 0; }
-.services { display: grid; gap: 10px; margin-top: 12px; }
+.services {
+  display: grid; gap: 14px; margin-top: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
 .svc {
-  display: grid; gap: 4px;
-  padding: 12px 14px 12px 20px;
-  border-radius: var(--r-sm);
-  background: var(--bg);
+  display: grid; grid-template-rows: auto 1fr;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-plate);
+  background: var(--plate);
   overflow: hidden;
 }
-/* ліва грань — жовтий трикутний «цінник» */
+/* жовтий трикутний «цінник» у куті картки */
 .svc::before {
   content: "";
-  position: absolute; left: 0; top: 0; bottom: 0;
-  width: 10px;
+  position: absolute; right: 0; top: 0; z-index: 1;
+  width: 34px; height: 34px;
   background: var(--yellow);
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
 }
-.svc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.svc-top b { font-family: var(--f-display); font-weight: 700; }
+.svc-photo {
+  aspect-ratio: 4 / 3;
+  background: var(--tri-bg), var(--bg);
+  display: grid; place-items: center;
+  border-bottom: 1.5px solid var(--line);
+  overflow: hidden;
+}
+.svc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+.svc-photo .svc-sign { width: 64px; height: 64px; }
+.svc-body { display: grid; gap: 6px; align-content: start; padding: 12px 14px 14px; }
+.svc-title { font-family: var(--f-display); font-weight: 700; font-size: 17px; line-height: 1.25; }
+.svc-body p { color: var(--muted); font-size: var(--t-sm); }
+.svc-foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin-top: 4px;
+}
 .svc-price {
   font-family: var(--f-display); font-weight: 800; white-space: nowrap;
-  color: var(--ok);
+  font-size: 18px; color: var(--ok);
 }
-.svc p { color: var(--muted); font-size: var(--t-sm); }
 .svc .link-btn { justify-self: start; }
+@media (hover: hover) {
+  .svc:hover .svc-photo img { transform: scale(1.05); }
+}
+.svc-preview { width: 128px; height: 96px; }
+
+/* ---------------- ОПЛАТА І ПІДТРИМКА ---------------- */
+
+.help-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.help-actions .btn { text-decoration: none; }
+.support-link {
+  justify-self: center; text-align: center;
+  font-size: 14px; font-weight: 600; color: var(--blue);
+  text-decoration: none;
+}
+.support-link:hover { text-decoration: underline; }
+.foot a.link-btn { text-decoration: none; }
 
 /* ---------------- ВЛАСНІ АЧІВКИ ---------------- */
 

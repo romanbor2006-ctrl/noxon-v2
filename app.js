@@ -367,20 +367,20 @@
     $("sPhotoInfo").textContent = data ? Math.round(data.length / 1024) + " КБ" : "";
   }
 
-  function shrinkImage(file) {
+  function shrinkImage(file, side = 520, max = S.limitsSubject.photoMax) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const k = Math.min(1, 520 / Math.max(img.width, img.height));
+        const k = Math.min(1, side / Math.max(img.width, img.height));
         const c = document.createElement("canvas");
         c.width = Math.round(img.width * k);
         c.height = Math.round(img.height * k);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
         let q = 0.85, out = c.toDataURL("image/jpeg", q);
-        while (out.length > S.limitsSubject.photoMax * 0.9 && q > 0.35) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
-        if (out.length <= S.limitsSubject.photoMax) resolve(out);
+        while (out.length > max * 0.9 && q > 0.35) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+        if (out.length <= max) resolve(out);
         else reject(new Error("Фото завелике навіть після стискання."));
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Це не схоже на зображення.")); };
@@ -577,18 +577,56 @@
     $(id).hidden = !err;
   }
 
-  /* --- послуги: відпрацювати борг ---------------------------------
-     Прайс справ, якими герой сайту може віддати борг. Редагує адмін. */
+  /* --- каталог послуг Дмитра --------------------------------------
+     Картки з фото, ціною й кнопкою «Оплатити» — вона веде в банку
+     Monobank і підставляє суму (a=) та назву послуги в коментар (t=).
+     Наповнює адмін. */
+  const isPhoto = (p) => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p || "");
+  function payLink(s) {
+    const base = safeUrl(C.payUrl);
+    if (!base || !s) return base;
+    return base + (base.includes("?") ? "&" : "?") + "a=" + s.price + "&t=" + encodeURIComponent("noxon: " + s.title);
+  }
   function renderServices() {
     const list = [...S.state.services].sort((a, b) => a.price - b.price || a.ts - b.ts);
     $("services").innerHTML = list.length ? list.map((s) => `
-      <div class="svc">
-        <div class="svc-top"><b>${esc(s.title)}</b><strong class="svc-price">${money(s.price)}</strong></div>
-        ${s.desc ? `<p>${esc(s.desc)}</p>` : ""}
-        ${isAdmin() ? `<button class="link-btn" type="button" data-svc="${esc(s.id)}">Змінити</button>` : ""}
-      </div>`).join("")
-      : `<p class="empty">${isAdmin() ? "Послуг ще немає — додай першу." : "Послуг поки немає."}</p>`;
+      <article class="svc">
+        <div class="svc-photo">${isPhoto(s.photo) ? `<img src="${s.photo}" alt="" loading="lazy">` : `${SIGN.info("₴", "svc-sign")}`}</div>
+        <div class="svc-body">
+          <b class="svc-title">${esc(s.title)}</b>
+          ${s.desc ? `<p>${esc(s.desc)}</p>` : ""}
+          <div class="svc-foot">
+            <strong class="svc-price">${s.price ? money(s.price) : "безкоштовно"}</strong>
+            ${s.price && payLink(s) ? `<a class="btn btn-sm btn-accent" href="${esc(payLink(s))}" target="_blank" rel="noopener">Оплатити</a>` : ""}
+          </div>
+          ${isAdmin() ? `<button class="link-btn" type="button" data-svc="${esc(s.id)}">Змінити</button>` : ""}
+        </div>
+      </article>`).join("")
+      : `<p class="empty">${isAdmin() ? "Каталог порожній — додай першу послугу." : "Послуг поки немає."}</p>`;
   }
+
+  /* посилання на банку й підтримку — з config.js */
+  $("payJar").href = safeUrl(C.payUrl) || "#";
+  $("payJar").hidden = !safeUrl(C.payUrl);
+  document.querySelectorAll("[data-support]").forEach((a) => {
+    a.href = safeUrl(C.supportUrl) || "#";
+    a.hidden = !safeUrl(C.supportUrl);
+  });
+
+  let svPhoto = "";
+  function setSvPhoto(data) {
+    svPhoto = data;
+    $("svPhotoPreview").innerHTML = data ? `<img src="${esc(data)}" alt="">` : "<span>немає</span>";
+    $("svPhotoClear").hidden = !data;
+    $("svPhotoInfo").textContent = data ? Math.round(data.length / 1024) + " КБ" : "";
+  }
+  $("svPhotoFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try { setSvPhoto(await shrinkImage(file, 640, S.limitsService.photoMax)); formError("svError", null); }
+    catch (err) { formError("svError", err); }
+  });
+  $("svPhotoClear").addEventListener("click", () => { $("svPhotoFile").value = ""; setSvPhoto(""); });
 
   let serviceId = null;
   function openService(id) {
@@ -598,6 +636,8 @@
     $("svTitle").value = s ? s.title : "";
     $("svPrice").value = s ? s.price : "";
     $("svDesc").value = s ? s.desc || "" : "";
+    $("svPhotoFile").value = "";
+    setSvPhoto(s && isPhoto(s.photo) ? s.photo : "");
     $("svDelete").hidden = !s;
     formError("svError", null);
     $("serviceDialog").showModal();
@@ -610,7 +650,7 @@
   $("serviceForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
-      await S.saveService(serviceId, { title: $("svTitle").value, price: $("svPrice").value, desc: $("svDesc").value });
+      await S.saveService(serviceId, { title: $("svTitle").value, price: $("svPrice").value, desc: $("svDesc").value, photo: svPhoto });
       $("serviceDialog").close();
       toast("Послугу збережено");
     } catch (err) { formError("svError", err); }

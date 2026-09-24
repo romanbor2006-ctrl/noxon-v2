@@ -430,7 +430,9 @@
       if (col === "services") {
         return admin && (op === "delete" || (typeof after.title === "string" && after.title.length > 0 && after.title.length <= 60
           && Number.isInteger(after.price) && after.price >= 0 && after.price <= L.amountMax
-          && typeof after.desc === "string" && after.desc.length <= 200));
+          && typeof after.desc === "string" && after.desc.length <= 200
+          && (after.photo === undefined || (typeof after.photo === "string" && after.photo.length <= 200000
+            && (after.photo === "" || /^data:image\/(jpeg|png|webp);base64,/.test(after.photo))))));
       }
       if (col === "ratings") {
         if (op === "delete") return admin || id === uid;
@@ -576,6 +578,7 @@
     // досьє з бази; null — ще не заповнене
     get subject() { return state.site.find((d) => d.id === "subject") || null; },
     limitsSubject: { photoMax: 400000 },
+    limitsService: { photoMax: 200000 },
     validSubject,
 
     /* onAuth(me | null, причина) — вхід/вихід; onData() — будь-яка зміна даних */
@@ -798,16 +801,19 @@
     },
     removeBadge(id) { return guestBlocked() || B.remove("badges", id); },
 
-    /* ---------------- ПОСЛУГИ: ВІДПРАЦЮВАТИ БОРГ (адмін) ---------------- */
-    saveService(id, { title, price, desc }) {
+    /* ---------------- КАТАЛОГ ПОСЛУГ ДМИТРА (адмін) ---------------- */
+    saveService(id, { title, price, desc, photo }) {
       const stop = guestBlocked(); if (stop) return stop;
       const data = {
         title: String(title || "").trim(),
         price: Number(price),
         desc: String(desc || "").trim(),
+        photo: String(photo || ""),
         ts: Date.now()
       };
       if (!data.title) return Promise.reject(invalid("Назви послугу."));
+      if (data.photo && (data.photo.length > 200000 || !/^data:image\/(jpeg|png|webp);base64,/.test(data.photo)))
+        return Promise.reject(invalid("Фото завелике або не того формату."));
       if (data.title.length > 60) return Promise.reject(invalid("Назва — до 60 символів."));
       if (!Number.isInteger(data.price) || data.price < 0 || data.price > L.amountMax)
         return Promise.reject(invalid("Ціна — ціле число від 0 до " + L.amountMax + "."));

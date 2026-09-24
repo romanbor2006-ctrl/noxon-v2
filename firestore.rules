@@ -247,10 +247,12 @@ service cloud.firestore {
     match /services/{id} {
       allow read: if canRead();
       allow create, update: if isAdmin()
-        && incoming().keys().hasOnly(['title', 'price', 'desc', 'ts'])
+        && incoming().keys().hasOnly(['title', 'price', 'desc', 'photo', 'ts'])
         && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 60
         && incoming().price is int && incoming().price >= 0 && incoming().price <= 100000
         && incoming().desc is string && incoming().desc.size() <= 200
+        && (!('photo' in incoming()) || (incoming().photo is string && incoming().photo.size() <= 200000
+            && (incoming().photo == '' || incoming().photo.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$'))))
         && incoming().ts is int;
       allow delete: if isAdmin();
     }
