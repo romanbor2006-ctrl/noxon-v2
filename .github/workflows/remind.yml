@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "test — надіслати завжди; normal — як щоранку"
+        description: "test — одне повідомлення адміну; normal — як щоранку"
         type: choice
         options: [test, normal]
         default: test
@@ -27,13 +27,13 @@ jobs:
         with:
           node-version: 20
       - name: Тести
-        run: node --test bot/reminders.test.js bot/firestore.test.js bot/moderation.test.js
+        run: node --test bot/*.test.js
         env:
           TZ: Europe/Kyiv
       - name: Нагадування
-        run: node bot/remind.js
+        # Саме надсилання робить Vercel (/api/remind): там доступ бота до бази.
+        run: node bot/remind-trigger.js
         env:
           TZ: Europe/Kyiv
           REMIND_MODE: ${{ github.event.inputs.mode || 'normal' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

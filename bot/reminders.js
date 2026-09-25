@@ -1,5 +1,6 @@
 /* Чиста логіка нагадувань: що горить і яким текстом про це сказати.
    Нічого не знає ні про Firebase, ні про Telegram. */
+const crypto = require("node:crypto");
 
 const GROUPS = [
   { days: 0, title: "Сьогодні" },
@@ -78,4 +79,20 @@ function buildKeyboard({ payUrl, siteUrl }) {
   return { inline_keyboard: [row] };
 }
 
-module.exports = { GROUPS, pickDue, nextDue, formatMessage, buildKeyboard, money, esc, plural, inDays };
+// Нагадування кредитору: що герой сайту має повернути йому сьогодні чи завтра.
+function creditorReminder(debts, uid, calc, hero) {
+  const due = debts
+    .filter((d) => d.creditorUid === uid && calc.isOpen(d) && [0, 1].includes(calc.daysLeft(d)))
+    .sort((a, b) => calc.daysLeft(a) - calc.daysLeft(b));
+  if (!due.length) return null;
+  const lines = due.map((d) => `• ${inDays(calc.daysLeft(d))} — ${money(calc.left(d))} за «${esc(d.reason)}»`);
+  return `🔔 <b>noxon: ${esc(hero)} має повернути тобі</b>\n${lines.join("\n")}`;
+}
+
+// Заголовок, яким GitHub Actions доводить /api/remind, що це саме він.
+// Виводимо з токена бота: він уже є і в GitHub, і у Vercel.
+function remindSecret(token) {
+  return crypto.createHash("sha256").update("noxon-remind:" + token).digest("hex").slice(0, 48);
+}
+
+module.exports = { GROUPS, pickDue, nextDue, formatMessage, buildKeyboard, money, esc, plural, inDays, creditorReminder, remindSecret };

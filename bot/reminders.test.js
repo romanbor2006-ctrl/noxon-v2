@@ -90,3 +90,28 @@ test("клавіатура: «Віддати» і «Відкрити сайт»"
     inline_keyboard: [[{ text: "🔗 Відкрити сайт", url: SITE }]],
   });
 });
+
+const { remindSecret, creditorReminder } = require("./reminders");
+const { webhookSecret } = require("./moderation");
+
+test("секрет нагадувань: стабільний і не збігається із секретом webhook", () => {
+  assert.equal(remindSecret("123:ABC"), remindSecret("123:ABC"));
+  assert.match(remindSecret("123:ABC"), /^[a-f0-9]{48}$/);
+  assert.notEqual(remindSecret("123:ABC"), webhookSecret("123:ABC"));
+});
+
+test("нагадування кредитору: лише свої борги на сьогодні й завтра", () => {
+  const debts = [
+    debt({ due: at(0), reason: "сьогоднішній" }),
+    debt({ due: at(1), reason: "завтрашній", amount: 400 }),
+    debt({ due: at(3), reason: "далекий" }),
+    debt({ due: at(0), reason: "чужий", creditorUid: "u2" }),
+    debt({ due: at(0), reason: "закритий", payments: [{ amount: 1000, ts: 1 }] }),
+  ];
+  const text = creditorReminder(debts, "u1", calc, "Дмитро");
+  assert.ok(text.includes("Дмитро має повернути тобі"));
+  assert.ok(text.includes(`сьогодні — ${money(1000)} за «сьогоднішній»`));
+  assert.ok(text.includes(`завтра — ${money(400)} за «завтрашній»`));
+  assert.ok(!/далекий|чужий|закритий/.test(text));
+  assert.equal(creditorReminder([debt({ due: at(2) })], "u1", calc, "Дмитро"), null);
+});

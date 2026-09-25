@@ -1,5 +1,5 @@
 /* Підключає бота до сервера: каже Telegram, куди слати команди й
-   натискання кнопок, і реєструє команду /zayavky.
+   натискання кнопок, і реєструє команди в меню бота (/zayavky — лише для адміна, у меню не показуємо).
    Запускає workflow «Підключити бота» (Actions → Run workflow). */
 const { loadSite } = require("./load-site");
 const { callApi } = require("./telegram");
@@ -18,7 +18,12 @@ async function main() {
     drop_pending_updates: true,
   });
   await callApi(token, "setMyCommands", {
-    commands: [{ command: "zayavky", description: "Заявки на борги, що чекають розгляду" }],
+    commands: [
+      { command: "borhy", description: "Борги: мої або всі (для Дмитра)" },
+      { command: "stan", description: "Загальний стан боргу" },
+      { command: "help", description: "Що вміє бот" },
+      { command: "vidvyazaty", description: "Відв'язати Telegram" },
+    ],
   });
   const info = await callApi(token, "getWebhookInfo", {});
   console.log(`Webhook: ${info.url}`);

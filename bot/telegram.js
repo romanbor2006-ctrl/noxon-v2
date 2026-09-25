@@ -12,7 +12,9 @@ async function callApi(token, method, payload) {
     400: " Перевір chat ID.",
     403: " Відкрий бота в Telegram і натисни Start.",
   }[body.error_code] || "";
-  throw new Error(`Telegram ${method}: ${body.description || res.status}.${hint}`);
+  const err = new Error(`Telegram ${method}: ${body.description || res.status}.${hint}`);
+  err.code = body.error_code;
+  throw err;
 }
 
 function sendMessage(token, chatId, html, replyMarkup) {
