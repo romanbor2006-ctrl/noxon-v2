@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wdth,wght@75..100,400..800&family=Commissioner:wght@400;500;600;700&display=swap">
 
-  <!-- ?v=16 — номер версії. Браузер кешує файли за адресою, тож без
+  <!-- ?v=17 — номер версії. Браузер кешує файли за адресою, тож без
        нього люди після оновлення бачать стару копію сайту.
        ПРИ КОЖНОМУ ЗАЛИВАННІ ЗБІЛЬШУЙ ЧИСЛО В УСІХ РЯДКАХ ?v= -->
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 
   <!-- Firebase compat: глобальний об'єкт firebase, без модулів і збірки -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -119,6 +119,14 @@
         <div class="help-actions">
           <a class="btn btn-accent" id="payJar" href="#" target="_blank" rel="noopener">Поповнити банку</a>
           <a class="btn btn-ghost" data-support href="#" target="_blank" rel="noopener">✉ Написати в підтримку</a>
+        </div>
+        <div class="tg-row" id="tgRow" hidden>
+          <div class="tg-info">
+            <b>Telegram-бот</b>
+            <span class="hint" id="tgState">не підключено</span>
+          </div>
+          <button class="btn btn-sm btn-soft" id="tgLink" type="button">Підключити Telegram</button>
+          <button class="link-btn danger" id="tgUnlink" type="button" hidden>Відв'язати</button>
         </div>
       </section>
     </div>
@@ -379,8 +387,8 @@
   <button class="btn btn-sm btn-accent" id="updateBtn" type="button">Оновити</button>
 </div>
 
-<script src="config.js?v=16"></script>
-<script src="storage.js?v=16"></script>
-<script src="app.js?v=16"></script>
+<script src="config.js?v=17"></script>
+<script src="storage.js?v=17"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

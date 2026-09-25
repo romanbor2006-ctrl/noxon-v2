@@ -542,6 +542,12 @@
             (err) => onError && onError(err, col)
           ));
       },
+      // свій документ telegram/<uid>: чи прив'язаний Telegram
+      watchTelegram(uid, cb) {
+        unsubs.push(db.collection("telegram").doc(uid).onSnapshot(
+          (s) => cb(s.exists ? s.data() : null),
+          () => cb(null)));
+      },
       stop() { unsubs.forEach((u) => u()); unsubs = []; },
       add(col, data) { return db.collection(col).add(data); },
       set(col, id, data) { return db.collection(col).doc(id).set(data); },
@@ -557,6 +563,14 @@
   }
 
   const find = (id) => state.debts.find((d) => d.id === id);
+
+  // Сказати боту, що в боргах щось змінилось: він сам читає базу й
+  // повідомляє в Telegram кого треба. Нічого не передаємо, помилку ігноруємо.
+  function ping(result) {
+    if (B.kind === "firebase" && C.notifyUrl) fetch(C.notifyUrl, { method: "POST", keepalive: true }).catch(() => {});
+    return result;
+  }
+  let tgLink = null; // мій документ telegram/<uid> або null
 
   // Гість — тільки перегляд. Кнопок йому не показують, але й прямий
   // виклик має відмовити; у базі те саме роблять правила.
@@ -586,6 +600,7 @@
       B.onAuth(async (acc) => {
         if (!acc) {
           me = null;
+          tgLink = null;
           B.stop();
           clearState();
           onAuth(null, kickReason);
@@ -649,6 +664,7 @@
               console.warn("noxon: підписка на «" + col + "» не працює:", err.code || err);
             }
           });
+          if (B.watchTelegram) B.watchTelegram(me.uid, (doc) => { tgLink = doc; onData(); });
         } catch (err) {
           kickReason = "Не вдалося завантажити профіль (" + (err.code || err.message) + ").";
           B.signOut();
@@ -689,17 +705,10 @@
         payments: [],
         claim: null,
         ts: Date.now()
-      }).then((r) => {
-        // Нова заявка — сказати боту, щоб повідомив адміна в Telegram.
-        // Бот сам читає базу, тож тут нічого не передаємо; помилку ігноруємо.
-        if (B.kind === "firebase" && C.notifyUrl) {
-          fetch(C.notifyUrl, { method: "POST", keepalive: true }).catch(() => {});
-        }
-        return r;
-      });
+      }).then(ping);
     },
-    approve(id) { return guestBlocked() || B.update("debts", id, { status: "approved" }); },
-    reject(id)  { return guestBlocked() || B.update("debts", id, { status: "rejected" }); },
+    approve(id) { return guestBlocked() || B.update("debts", id, { status: "approved" }).then(ping); },
+    reject(id)  { return guestBlocked() || B.update("debts", id, { status: "rejected" }).then(ping); },
     removeDebt(id) { return guestBlocked() || B.remove("debts", id); },
 
     // старі записи без creditorUid: адмін вказує, чий це борг
@@ -716,7 +725,7 @@
       amount = Math.round(Number(amount));
       if (!d) return Promise.reject(invalid("Запис не знайдено."));
       if (!(amount >= 1)) return Promise.reject(invalid("Вкажи суму."));
-      return B.update("debts", id, { claim: { amount: Math.min(amount, calc.left(d)), ts: Date.now() } });
+      return B.update("debts", id, { claim: { amount: Math.min(amount, calc.left(d)), ts: Date.now() } }).then(ping);
     },
     cancelClaim(id) { return guestBlocked() || B.update("debts", id, { claim: null }); },
 
@@ -728,10 +737,27 @@
       return B.update("debts", id, {
         payments: [...(d.payments || []), { amount: d.claim.amount, ts: Date.now() }],
         claim: null
-      });
+      }).then(ping);
     },
     // Кредитор: "не отримував" — заявка гасне, сума не змінюється.
-    deny(id) { return guestBlocked() || B.update("debts", id, { claim: null }); },
+    deny(id) { return guestBlocked() || B.update("debts", id, { claim: null }).then(ping); },
+
+    /* ---------------- TELEGRAM-БОТ ---------------- */
+    // null — не прив'язано; інакше { chatId, name, ts }
+    get telegram() { return tgLink; },
+    // Одноразовий код для посилання t.me/<бот>?start=<код>
+    telegramCode() {
+      const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      return Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => abc[n % abc.length]).join("");
+    },
+    telegramUrl(code) { return "https://t.me/" + C.botUsername + "?start=" + code; },
+    // Код із моїм uid — бот прочитає його, коли я натисну Start
+    linkTelegram(code) {
+      const stop = guestBlocked(); if (stop) return stop;
+      if (B.kind !== "firebase") return Promise.reject(invalid("Telegram працює лише в хмарній версії сайту."));
+      return B.set("tglinks", code, { uid: me.uid, ts: Date.now() });
+    },
+    unlinkTelegram() { return guestBlocked() || B.remove("telegram", me.uid); },
 
     /* ---------------- ДОСЬЄ ---------------- */
     saveSubject(data) {

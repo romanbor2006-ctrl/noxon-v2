@@ -1136,6 +1136,13 @@ body { background-image: var(--tri-bg); background-size: 56px 48px; }
 
 .help-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .help-actions .btn { text-decoration: none; }
+.tg-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1.5px dashed var(--line);
+}
+.tg-info { display: grid; gap: 2px; flex: 1 1 180px; min-width: 0; }
+.tg-info .hint { margin: 0; }
 .support-link {
   justify-self: center; text-align: center;
   font-size: 14px; font-weight: 600; color: var(--blue);

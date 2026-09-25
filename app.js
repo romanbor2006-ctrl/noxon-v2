@@ -484,7 +484,31 @@
     if (isAdmin()) { renderPending(); renderPeople(); }
     renderAchievements();
     renderReviews();
+    renderTelegram();
   }
+
+  /* --- Telegram-бот: прив'язка ------------------------------------
+     Код генерується тут, посилання відкривається одразу (інакше браузер
+     заблокує нове вікно), а код пишеться в базу паралельно — бот, якщо
+     не знайде його з першого разу, перепитає через секунду-дві. */
+  function renderTelegram() {
+    $("tgRow").hidden = isGuest();
+    if (isGuest()) return;
+    const tg = S.telegram;
+    $("tgState").textContent = tg ? "підключено ✓ — сповіщення приходять у Telegram" : "не підключено";
+    $("tgLink").hidden = !!tg;
+    $("tgUnlink").hidden = !tg;
+  }
+  $("tgLink").addEventListener("click", () => {
+    const code = S.telegramCode();
+    const link = S.linkTelegram(code);
+    link.then(() => toast("Відкрий Telegram і натисни «Start» — бот усе зробить сам"),
+      (err) => toast(humanError(err), true));
+    if (S.mode === "firebase") window.open(S.telegramUrl(code), "_blank", "noopener");
+  });
+  $("tgUnlink").addEventListener("click", () => {
+    if (confirm("Відв'язати Telegram? Сповіщення перестануть приходити.")) act(S.unlinkTelegram(), "Telegram відв'язано");
+  });
 
   /* --- «Що горить» + чотири метрики -----------------------------
      Критерій успіху з ТЗ: за п'ять секунд видно, кому винен і що
