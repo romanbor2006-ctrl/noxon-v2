@@ -83,6 +83,28 @@ async function patchDocument(projectId, docPath, fields, idToken, { mustNotExist
   return decodeDocument(body);
 }
 
+// Створити документ, лише якщо його ще немає. true — створено, false — уже був.
+// Так позначка «надіслано» працює ще й як замок від дублів.
+async function createDocument(projectId, docPath, fields, idToken) {
+  try {
+    await patchDocument(projectId, docPath, fields, idToken, { mustNotExist: true });
+    return true;
+  } catch (err) {
+    if (err.status === "ALREADY_EXISTS" || err.status === "FAILED_PRECONDITION") return false;
+    throw err;
+  }
+}
+
+async function deleteDocument(projectId, docPath, idToken) {
+  const res = await fetch(`${docsUrl(projectId)}/${docPath}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + idToken },
+  });
+  if (res.ok || res.status === 404) return;
+  const body = await res.json().catch(() => ({}));
+  throw new Error(`Firestore: не вдалося видалити ${docPath} (${(body.error && body.error.status) || res.status}).`);
+}
+
 async function readJson(url, idToken, what) {
   const res = await fetch(url, { headers: { Authorization: "Bearer " + idToken } });
   if (res.status === 404) return null;
@@ -111,5 +133,5 @@ async function getDocument(projectId, docPath, idToken) {
 module.exports = {
   decodeFields, decodeDocument, encodeFields,
   signInAnonymously, signInWithPassword,
-  listCollection, getDocument, patchDocument,
+  listCollection, getDocument, patchDocument, createDocument, deleteDocument,
 };

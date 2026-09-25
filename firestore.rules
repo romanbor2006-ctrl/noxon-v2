@@ -257,6 +257,33 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- TELEGRAM-БОТ ------------------------------------------
+    // Прив'язка: сайт кладе одноразовий код зі своїм uid, бот (акаунт
+    // з роллю адміна) читає його, записує telegram/<uid> і видаляє код.
+    match /tglinks/{code} {
+      allow create: if active() && code.matches('^[A-Za-z0-9]{24,48}$')
+        && incoming().keys().hasOnly(['uid', 'ts'])
+        && incoming().uid == request.auth.uid
+        && freshTs(incoming().ts);
+      allow read, delete: if isAdmin();
+    }
+
+    // Який чат Telegram належить людині. Бачить і відв'язує — сама людина.
+    match /telegram/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow create, update: if isAdmin()
+        && incoming().keys().hasOnly(['chatId', 'name', 'ts'])
+        && incoming().chatId is string && incoming().chatId.size() > 0 && incoming().chatId.size() <= 20
+        && incoming().name is string && incoming().name.size() <= 40
+        && incoming().ts is int;
+      allow delete: if (signedIn() && request.auth.uid == uid) || isAdmin();
+    }
+
+    // Позначки «сповіщення вже надіслано» — лише для бота.
+    match /tgsent/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // Колекцію comments більше не використовуємо: коментарі стали
     // частиною відгуків. Без правила вона закрита для всіх.
   }
