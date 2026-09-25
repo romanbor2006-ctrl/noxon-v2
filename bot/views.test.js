@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { loadSite, withData } = require("./load-site");
 const V = require("./views");
 // без тегів і з простими пробілами: Intl ставить нерозривні між тисячами
-const plain = (s) => s.replace(/<[^>]+>/g, "").replace(/[  ]/g, " ");
+const plain = (s) => s.replace(/<[^>]+>/g, "").replace(/[\u00a0\u202f]/g, " ");
 
 const site = loadSite();
 const { calc } = site;
