@@ -15,7 +15,15 @@ function loadSite() {
   for (const file of ["config.js", "storage.js"]) {
     vm.runInContext(fs.readFileSync(path.join(SITE_DIR, file), "utf8"), ctx, { filename: file });
   }
-  return { CONFIG: ctx.CONFIG, calc: ctx.Store.calc };
+  return { CONFIG: ctx.CONFIG, calc: ctx.Store.calc, Store: ctx.Store };
 }
 
-module.exports = { loadSite };
+// Покласти борги й людей у стан storage.js — тоді загальні функції
+// (totals, reliability, queue) рахують рівно те, що бачить сайт.
+function withData(site, debts, users = []) {
+  site.Store.state.debts = debts;
+  site.Store.state.users = users;
+  return site.calc;
+}
+
+module.exports = { loadSite, withData };

@@ -78,4 +78,4 @@ function buildKeyboard({ payUrl, siteUrl }) {
   return { inline_keyboard: [row] };
 }
 
-module.exports = { GROUPS, pickDue, nextDue, formatMessage, buildKeyboard, money, esc };
+module.exports = { GROUPS, pickDue, nextDue, formatMessage, buildKeyboard, money, esc, plural, inDays };
