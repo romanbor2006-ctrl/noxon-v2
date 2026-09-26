@@ -73,20 +73,23 @@ function helpText(role, hero) {
       + "Щоранку о 9:00 нагадаю про борги, що горять, і повідомлю про новий борг "
       + "та про платіж, який кредитор підтвердив.\n\n/vidvyazaty — відв'язати Telegram";
   }
-  return `📋 <b>Борги</b> — що ${esc(hero)} винен тобі\n`
+  return "➕ <b>Новий борг</b> — подати заявку (розглядає адмін, як і з сайту)\n"
+    + `📋 <b>Борги</b> — що ${esc(hero)} винен тобі\n`
     + "📊 <b>Стан</b> — загальна картина\n\n"
     + `Повідомлю, коли твою заявку розглянуть, коли ${esc(hero)} скаже, що віддав, `
-    + "і в день повернення. Підтверджувати платежі — на сайті.\n\n/vidvyazaty — відв'язати Telegram";
+    + "і в день повернення. Підтверджувати платежі — на сайті.\n\n"
+    + "/skasuvaty — скасувати заявку, яку заповнюєш\n/vidvyazaty — відв'язати Telegram";
 }
 
 function welcomeText(user, hero) {
   return `Привіт, ${esc(user.name)}! Telegram підключено до noxon ✅\n\n${helpText(user.role, hero)}`;
 }
 
-// Постійна клавіатура під полем вводу
-function menuKeyboard() {
+// Постійна клавіатура під полем вводу; «Новий борг» — усім, крім героя сайту
+function menuKeyboard(role) {
+  const top = role === "subject" ? [] : [[{ text: "➕ Новий борг" }]];
   return {
-    keyboard: [[{ text: "📋 Борги" }, { text: "📊 Стан" }], [{ text: "ℹ️ Допомога" }]],
+    keyboard: [...top, [{ text: "📋 Борги" }, { text: "📊 Стан" }], [{ text: "ℹ️ Допомога" }]],
     resize_keyboard: true,
     is_persistent: true,
   };

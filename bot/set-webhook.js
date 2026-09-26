@@ -19,6 +19,8 @@ async function main() {
   });
   await callApi(token, "setMyCommands", {
     commands: [
+      { command: "novyi", description: "Подати заявку на борг" },
+      { command: "skasuvaty", description: "Скасувати заявку, яку заповнюєш" },
       { command: "borhy", description: "Борги: мої або всі (для Дмитра)" },
       { command: "stan", description: "Загальний стан боргу" },
       { command: "help", description: "Що вміє бот" },

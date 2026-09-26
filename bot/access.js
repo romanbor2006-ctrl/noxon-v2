@@ -10,10 +10,13 @@ function parseStartCode(text) {
   return m && CODE_RE.test(m[1]) ? m[1] : null;
 }
 
-const BUTTONS = { "📋 Борги": "debts", "📊 Стан": "status", "ℹ️ Допомога": "help" };
-const COMMANDS = { borhy: "debts", stan: "status", help: "help", vidvyazaty: "unlink", zayavky: "zayavky" };
+const BUTTONS = { "➕ Новий борг": "newdebt", "📋 Борги": "debts", "📊 Стан": "status", "ℹ️ Допомога": "help" };
+const COMMANDS = {
+  novyi: "newdebt", skasuvaty: "cancel", borhy: "debts", stan: "status",
+  help: "help", vidvyazaty: "unlink", zayavky: "zayavky",
+};
 
-// start | debts | status | help | unlink | zayavky | unknown
+// start | newdebt | cancel | debts | status | help | unlink | zayavky | unknown
 function routeMessage(text) {
   const t = String(text || "").trim();
   if (/^\/start(@\w+)?(\s|$)/.test(t)) return { type: "start", code: parseStartCode(t) };

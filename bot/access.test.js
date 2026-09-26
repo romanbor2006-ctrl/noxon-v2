@@ -28,6 +28,9 @@ test("routeMessage: кнопки й команди", () => {
   assert.equal(routeMessage("/vidvyazaty").type, "unlink");
   assert.equal(routeMessage("/zayavky").type, "zayavky");
   assert.equal(routeMessage("  /stan  ").type, "status");
+  assert.equal(routeMessage("➕ Новий борг").type, "newdebt");
+  assert.equal(routeMessage("/novyi").type, "newdebt");
+  assert.equal(routeMessage("/skasuvaty").type, "cancel");
   assert.equal(routeMessage("щось інше").type, "unknown");
   assert.equal(routeMessage(undefined).type, "unknown");
 });

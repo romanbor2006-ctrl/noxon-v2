@@ -94,6 +94,38 @@ service cloud.firestore {
         && d.due is string && d.due.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    // Нова заявка: завжди pending, без платежів і заявок, час — зараз.
+    function newDebtShape() {
+      return incoming().keys().hasOnly(['amount', 'reason', 'creditor', 'creditorUid', 'author', 'due', 'status', 'payments', 'claim', 'ts'])
+        && validDebt(incoming())
+        && incoming().creditorUid is string && incoming().creditorUid.size() > 0
+        && exists(/databases/$(database)/documents/users/$(incoming().creditorUid))
+        && incoming().status == 'pending'
+        && incoming().payments == []
+        && incoming().claim == null
+        && freshTs(incoming().ts);
+    }
+    // Із сайту: кожен сам за себе — лише собі; герой сайту — ніколи.
+    function selfDebt() {
+      return active()
+        && incoming().creditorUid == request.auth.uid
+        && incoming().creditor == myName()
+        && incoming().author == myName()
+        && role() != 'subject';
+    }
+    // Із Telegram: пише акаунт бота від імені людини, що прив'язала чат
+    // (telegram/<uid>) і досі активна. Далі — звичайна модерація адміном.
+    function isBot() { return signedIn() && request.auth.token.email == 'bot@noxon.local'; }
+    function botDebt() {
+      let u = get(/databases/$(database)/documents/users/$(incoming().creditorUid)).data;
+      return isBot() && isAdmin()
+        && exists(/databases/$(database)/documents/telegram/$(incoming().creditorUid))
+        && u.get('active', false) == true
+        && u.get('role', 'member') in ['member', 'admin']
+        && incoming().creditor == u.get('name', '')
+        && incoming().author == incoming().creditor;
+    }
+
     function oldPayments() { return stored().get('payments', []); }
     function newPayments() { return incoming().get('payments', []); }
 
@@ -145,22 +177,10 @@ service cloud.firestore {
     match /debts/{id} {
       allow read: if canRead();
 
-      // Нова заявка: завжди pending, без платежів і заявок, час — зараз.
       // Кожен сам за себе: борг вносить тільки той, кому винні, і тільки собі.
       // Навіть адмін не записує боргів за інших; герой сайту не вносить їх зовсім.
-      allow create: if active()
-        && incoming().keys().hasOnly(['amount', 'reason', 'creditor', 'creditorUid', 'author', 'due', 'status', 'payments', 'claim', 'ts'])
-        && validDebt(incoming())
-        && incoming().creditorUid is string && incoming().creditorUid.size() > 0
-        && incoming().creditorUid == request.auth.uid
-        && incoming().creditor == myName()
-        && role() != 'subject'
-        && exists(/databases/$(database)/documents/users/$(incoming().creditorUid))
-        && incoming().author == myName()
-        && incoming().status == 'pending'
-        && incoming().payments == []
-        && incoming().claim == null
-        && freshTs(incoming().ts);
+      // Єдиний виняток — бот: заявка з Telegram від імені прив'язаної людини.
+      allow create: if newDebtShape() && (selfDebt() || botDebt());
 
       allow update: if adminStep() || claimStep() || confirmStep();
       allow delete: if isAdmin();
@@ -282,6 +302,11 @@ service cloud.firestore {
     // Позначки «сповіщення вже надіслано» — лише для бота.
     match /tgsent/{id} {
       allow read, write: if isAdmin();
+    }
+
+    // Чернетка заявки, яку людина заповнює в боті, — лише для бота.
+    match /tgdraft/{uid} {
+      allow read, write: if isBot() && isAdmin();
     }
 
     // Колекцію comments більше не використовуємо: коментарі стали

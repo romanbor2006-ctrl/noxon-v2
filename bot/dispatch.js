@@ -5,10 +5,11 @@
    так два паралельні запуски не надішлють одне й те саме двічі. Якщо
    Telegram не прийняв повідомлення, позначку знімаємо, щоб спробувати
    наступного разу (крім 403: людина заблокувала бота — не набридаємо). */
-const { listCollection, getDocument, createDocument, deleteDocument } = require("./firestore");
+const { listCollection, getDocument, createDocument, deleteDocument, patchDocument } = require("./firestore");
 const { sendMessage } = require("./telegram");
 const { collectEvents, heroUid } = require("./events");
 const { linksKeyboard } = require("./views");
+const { pendingText, pendingKeyboard } = require("./moderation");
 const { withData } = require("./load-site");
 
 async function loadWorld(s) {
@@ -62,4 +63,22 @@ async function sendEvents(site, s, token, world) {
   return { sent };
 }
 
-module.exports = { loadWorld, chatOf, sendEvents };
+// Повний прохід після будь-якої зміни боргів: нові заявки — адміну з
+// кнопками модерації (позначка notified), потім особисті сповіщення.
+async function notifyAll(site, s, token, adminChatId) {
+  const world = await loadWorld(s);
+  const fresh = world.debts
+    .filter((d) => d.status === "pending" && !d.notified)
+    .sort((a, b) => a.ts - b.ts);
+  let pending = 0;
+  for (const d of fresh) {
+    // Спершу надсилаємо, потім ставимо позначку: краще рідкісний дубль, ніж загублена заявка.
+    await sendMessage(token, adminChatId, pendingText(d), pendingKeyboard(d.id));
+    await patchDocument(s.projectId, `debts/${d.id}`, { notified: true }, s.idToken);
+    pending++;
+  }
+  return { pending, ...(await sendEvents(site, s, token, world)) };
+}
+
+module.exports = { loadWorld, chatOf, sendEvents, notifyAll };
+

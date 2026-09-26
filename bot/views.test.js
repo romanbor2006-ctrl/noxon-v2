@@ -68,7 +68,8 @@ test("стан: суми, прострочене, надійність без д
 });
 
 test("клавіатури", () => {
-  assert.deepEqual(V.menuKeyboard().keyboard.flat().map((b) => b.text), ["📋 Борги", "📊 Стан", "ℹ️ Допомога"]);
+  assert.deepEqual(V.menuKeyboard("member").keyboard.flat().map((b) => b.text), ["➕ Новий борг", "📋 Борги", "📊 Стан", "ℹ️ Допомога"]);
+  assert.deepEqual(V.menuKeyboard("subject").keyboard.flat().map((b) => b.text), ["📋 Борги", "📊 Стан", "ℹ️ Допомога"]);
   const kb = V.linksKeyboard({ siteUrl: "https://s", payUrl: "https://p", pay: true });
   assert.deepEqual(kb.inline_keyboard[0].map((b) => b.url), ["https://p", "https://s"]);
   assert.equal(V.linksKeyboard({ siteUrl: "https://s", payUrl: "https://p" }).inline_keyboard[0].length, 1);

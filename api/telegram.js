@@ -5,12 +5,14 @@
 process.env.TZ = "Europe/Kyiv";
 const { loadSite, withData } = require("../bot/load-site");
 const { botSession } = require("../bot/bot-account");
-const { listCollection, getDocument, patchDocument, deleteDocument } = require("../bot/firestore");
+const crypto = require("node:crypto");
+const { listCollection, getDocument, patchDocument, deleteDocument, createDocument } = require("../bot/firestore");
 const { sendMessage, editMessageText, answerCallbackQuery } = require("../bot/telegram");
 const { webhookSecret, routeUpdate, pendingText, pendingKeyboard, decisionText } = require("../bot/moderation");
 const { routeMessage, findMember } = require("../bot/access");
 const V = require("../bot/views");
-const { loadWorld, sendEvents } = require("../bot/dispatch");
+const { loadWorld, sendEvents, notifyAll } = require("../bot/dispatch");
+const N = require("../bot/newdebt");
 
 const NOT_ADMIN = "Бот ще не адмін: видай йому роль «адмін» на сайті, у блоці «Люди».";
 const ADMIN_HELP = "Ти адмін: /zayavky — заявки на розгляді.\n"
@@ -36,8 +38,10 @@ module.exports = async (req, res) => {
   res.status(200).send("ok");
 };
 
-/* ---------- кнопки модерації (лише адмін-чат) ---------- */
+/* ---------- кнопки ---------- */
 async function onCallback(update, token) {
+  if (N.parseDraftCallback(update.callback_query.data)) return onDraftCallback(update.callback_query, token);
+  // решта кнопок — модерація, лише адмін-чат
   const route = routeUpdate(update, process.env.TELEGRAM_ADMIN_CHAT_ID);
   if (route.type === "ignore") return route.callbackId && answerCallbackQuery(token, route.callbackId, "");
   if (route.type === "forbidden") return answerCallbackQuery(token, route.callbackId, "Це приватний бот noxon.");
@@ -73,6 +77,9 @@ async function onMessage(msg, token) {
   if (!s.isAdmin) return sendMessage(token, chatId, isAdminChat ? NOT_ADMIN : V.PRIVATE_TEXT);
 
   if (route.type === "start" && route.code) return linkChat(site, s, token, chatId, route.code);
+  if (route.type === "newdebt" || route.type === "cancel" || route.type === "unknown") {
+    if (await draftMessage(s, token, chatId, route.type, msg.text)) return;
+  }
   if (route.type === "zayavky" && isAdminChat) return listPending(s, token, chatId);
 
   const world = await loadWorld(s);
@@ -98,7 +105,7 @@ async function onMessage(msg, token) {
       return sendMessage(token, chatId, "Telegram відв'язано. Підключити знову — кнопкою на сайті.", { remove_keyboard: true });
     default: // start без коду, help, будь-що інше
       return sendMessage(token, chatId, V.helpText(who.user.role, world.hero)
-        + (isAdminChat ? "\n/zayavky — заявки на розгляді" : ""), V.menuKeyboard());
+        + (isAdminChat ? "\n/zayavky — заявки на розгляді" : ""), V.menuKeyboard(who.user.role));
   }
 }
 
@@ -123,7 +130,7 @@ async function linkChat(site, s, token, chatId, code) {
 
   const subject = await getDocument(p, "site/subject", s.idToken);
   const hero = subject && subject.name ? subject.name.split(" ")[0] : "Дмитро";
-  return sendMessage(token, chatId, V.welcomeText(user, hero), V.menuKeyboard());
+  return sendMessage(token, chatId, V.welcomeText(user, hero), V.menuKeyboard(user.role));
 }
 
 async function listPending(s, token, chatId) {
@@ -132,4 +139,120 @@ async function listPending(s, token, chatId) {
     .sort((a, b) => a.ts - b.ts);
   if (!pending.length) return sendMessage(token, chatId, "Заявок на розгляді немає.");
   for (const d of pending) await sendMessage(token, chatId, pendingText(d), pendingKeyboard(d.id));
+}
+
+/* ---------- заявка на борг через бота ----------
+   Чернетка — tgdraft/<uid>. Id боргу береться з чернетки (tg<nonce>),
+   тож подвійне «Надіслати» не створить двох заявок. */
+const draftPath = (uid) => `tgdraft/${uid}`;
+const nonce = () => crypto.randomBytes(24).toString("hex").slice(0, 20);
+
+async function member(s, chatId) {
+  const [links, users, subject] = await Promise.all([
+    listCollection(s.projectId, "telegram", s.idToken),
+    listCollection(s.projectId, "users", s.idToken),
+    getDocument(s.projectId, "site/subject", s.idToken),
+  ]);
+  const who = findMember(chatId, links, users);
+  return who && { ...who, hero: subject && subject.name ? subject.name.split(" ")[0] : "Дмитро" };
+}
+
+async function saveDraft(s, uid, draft) {
+  await deleteDocument(s.projectId, draftPath(uid), s.idToken); // старі поля не мають лишитися
+  await patchDocument(s.projectId, draftPath(uid), draft, s.idToken);
+}
+
+async function ask(token, chatId, draft, hero, prefix = "") {
+  const q = N.prompt(draft, hero);
+  return sendMessage(token, chatId, prefix + q.text, q.keyboard);
+}
+
+// true — повідомлення оброблено діалогом; false — хай іде далі
+async function draftMessage(s, token, chatId, type, text) {
+  const who = await member(s, chatId);
+  if (!who) return false;
+  const path = draftPath(who.uid);
+
+  if (type === "newdebt") {
+    if (who.user.role === "subject") {
+      await sendMessage(token, chatId, "Герой сайту не подає заявок сам собі 🙂");
+      return true;
+    }
+    const draft = N.startDraft(nonce());
+    await saveDraft(s, who.uid, draft);
+    await ask(token, chatId, draft, who.hero);
+    return true;
+  }
+
+  const draft = await getDocument(s.projectId, path, s.idToken);
+  if (type === "cancel") {
+    if (draft) await deleteDocument(s.projectId, path, s.idToken);
+    await sendMessage(token, chatId, draft ? "Заявку скасовано." : "Нічого скасовувати.");
+    return true;
+  }
+  // type === "unknown": відповідь на питання діалогу
+  if (!draft) return false;
+  if (N.expired(draft)) {
+    await deleteDocument(s.projectId, path, s.idToken);
+    await sendMessage(token, chatId, "Заявка застаріла — почни знову: «➕ Новий борг».");
+    return true;
+  }
+  const r = N.applyInput(draft, text);
+  if (r.error) {
+    await ask(token, chatId, draft, who.hero, "⚠️ " + r.error + "\n\n");
+    return true;
+  }
+  await saveDraft(s, who.uid, r.draft);
+  await ask(token, chatId, r.draft, who.hero);
+  return true;
+}
+
+async function onDraftCallback(cb, token) {
+  const act = N.parseDraftCallback(cb.data);
+  const chatId = String(cb.message.chat.id);
+  const messageId = cb.message.message_id;
+  const site = loadSite();
+  const s = await botSession(site.CONFIG, process.env.BOT_PASSWORD);
+  if (!s.isAdmin) return answerCallbackQuery(token, cb.id, NOT_ADMIN);
+  const who = await member(s, chatId);
+  if (!who) return answerCallbackQuery(token, cb.id, "Це приватний бот noxon.");
+  const path = draftPath(who.uid);
+  const draft = await getDocument(s.projectId, path, s.idToken);
+
+  if (act.action === "cancel") {
+    if (draft) await deleteDocument(s.projectId, path, s.idToken);
+    await editMessageText(token, chatId, messageId, "Заявку скасовано.");
+    return answerCallbackQuery(token, cb.id, "Скасовано");
+  }
+  if (!draft || N.expired(draft)) {
+    if (draft) await deleteDocument(s.projectId, path, s.idToken);
+    await editMessageText(token, chatId, messageId, "Ця заявка вже неактуальна. Почни знову: «➕ Новий борг».");
+    return answerCallbackQuery(token, cb.id, "Застаріло");
+  }
+
+  if (act.action === "due") {
+    if (draft.step !== "due") return answerCallbackQuery(token, cb.id, "Цей крок уже пройдено");
+    const r = N.applyInput(draft, act.due);
+    if (r.error) return answerCallbackQuery(token, cb.id, r.error);
+    await saveDraft(s, who.uid, r.draft);
+    await editMessageText(token, chatId, messageId, "Дата: <b>" + V.dmy(r.draft.due) + "</b>");
+    await answerCallbackQuery(token, cb.id, "");
+    return ask(token, chatId, r.draft, who.hero);
+  }
+
+  // act.action === "send"
+  if (draft.step !== "confirm") return answerCallbackQuery(token, cb.id, "Спершу заповни заявку");
+  if (who.user.role === "subject") return answerCallbackQuery(token, cb.id, "Герой сайту не подає заявок");
+  const created = await createDocument(s.projectId, "debts/tg" + draft.nonce,
+    N.debtFromDraft(draft, who.user, who.uid), s.idToken);
+  await deleteDocument(s.projectId, path, s.idToken);
+  const body = N.cardText(draft, who.hero).split("\n").slice(1).join("\n");
+  await editMessageText(token, chatId, messageId,
+    (created ? "✅ <b>Заявку надіслано</b> — чекає підтвердження адміна.\n" : "Цю заявку вже надіслано.\n") + body);
+  await answerCallbackQuery(token, cb.id, created ? "Надіслано" : "Уже надіслано");
+  // адміну — заявка з кнопками модерації, як із сайту
+  if (created) {
+    await notifyAll(site, s, token, process.env.TELEGRAM_ADMIN_CHAT_ID)
+      .catch((err) => console.error("noxon notify:", err.message));
+  }
 }
